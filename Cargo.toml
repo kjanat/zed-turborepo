@@ -9,7 +9,7 @@ description = "Tools and instant feedback for your build system"
 readme      = "README.md"
 repository  = "https://github.com/kjanat/zed-turborepo"
 license     = "MIT"
-keywords    = ["extension", "lsp", "monorepo", "turbo", "turborepo", "vercel", "zed"]
+keywords    = ["lsp", "mcp", "turborepo", "vercel", "zed"]
 categories  = ["development-tools", "text-editors"]
 publish     = false
 

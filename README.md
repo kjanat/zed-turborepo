@@ -1,9 +1,22 @@
 # Turbo Extension for Zed
 
 Language support for [Turborepo](https://turbo.build/repo) `turbo.json`
-configuration files.
+configuration files with LSP integration and MCP server for AI assistants.
+
+## Architecture
+
+```
+zed-turborepo/
+├── crates/
+│   ├── turbo-zed/     # Zed extension (WASM)
+│   ├── turbo-lsp/     # Thin wrapper around turborepo-lsp
+│   └── turbo-mcp/     # MCP server for AI assistants
+└── patches/           # Biome crate patches
+```
 
 ## Features
+
+### Zed Extension (turbo-zed)
 
 - **Syntax Highlighting**: Full syntax highlighting for `turbo.json` files with
   special highlighting for turbo-specific keys
@@ -15,16 +28,59 @@ configuration files.
   - Code lens for running tasks
   - Quick fixes for deprecated syntax
 
+### MCP Server (turbo-mcp)
+
+An MCP (Model Context Protocol) server for AI assistants like Claude, Cursor,
+and Windsurf.
+
+#### Resources (Read-only)
+
+| Resource           | Description                    |
+| ------------------ | ------------------------------ |
+| `turbo://config`   | Full turbo.json configuration  |
+| `turbo://tasks`    | List of defined tasks          |
+| `turbo://packages` | Workspace packages             |
+| `turbo://cache`    | Cache configuration and status |
+
+#### Tools (Actions)
+
+| Tool      | Description                              |
+| --------- | ---------------------------------------- |
+| `workdir` | Get/set working directory                |
+| `daemon`  | Control turbo daemon (status/start/stop) |
+| `run`     | Execute turbo tasks                      |
+| `graph`   | Show task dependency graph               |
+| `prune`   | Prune workspace to minimal subset        |
+| `query`   | Query the task graph                     |
+| `lint`    | Run turbo lint                           |
+| `info`    | Get package/workspace info               |
+
 ## Installation
 
-### From Zed Extensions
+### Zed Extension
 
 Search for "Turbo" in the Zed extensions panel and install.
 
-### Manual Installation
+### MCP Server
 
-1. Clone this repository
-2. In Zed, use `Install Dev Extension` and select the extension directory
+```bash
+# Build from source
+cargo install --path crates/turbo-mcp
+
+# Or download from releases
+```
+
+Configure in your AI client (e.g., Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "turbo": {
+      "command": "turbo-mcp"
+    }
+  }
+}
+```
 
 ## LSP Binary
 
@@ -106,6 +162,19 @@ The Turborepo LSP provides:
 | `turbo:no-such-task-in-package` | Task doesn't exist in specified package |
 | `turbo:self-dependency`         | Task depends on itself                  |
 | `deprecated:env-var`            | `$` syntax is deprecated                |
+
+## Development
+
+```bash
+# Build all crates
+cargo build
+
+# Run tests
+cargo test
+
+# Build release binaries
+cargo build --release
+```
 
 ## License
 

@@ -35,7 +35,9 @@
     "remoteCache"
     "futureFlags"
     "boundaries"
-    "tags"))
+    "tags"
+    "experimentalUI"
+    "legacyExperiments"))
 
 ; Task configuration keys
 (pair
@@ -52,7 +54,8 @@
     "interactive"
     "interruptible"
     "with"
-    "description"))
+    "description"
+    "allowAllOutputLogsOnSuccess"))
 
 ; Remote cache configuration keys
 (pair
@@ -75,7 +78,8 @@
     "dependencies"
     "dependents"
     "allow"
-    "deny"))
+    "deny"
+    "taskOverrides"))
 
 ; Future flags keys
 (pair

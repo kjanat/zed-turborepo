@@ -39,6 +39,7 @@ const ICON_SVG: &str = include_str!("../../../resources/icon.svg");
 const URI_CONFIG: &str = "turbo://config";
 const URI_TASKS: &str = "turbo://tasks";
 const URI_PACKAGES: &str = "turbo://packages";
+const URI_CACHE: &str = "turbo://cache";
 
 // ============================================================================
 // Server State
@@ -115,6 +116,38 @@ pub struct GraphParams {
     /// Task to graph (default: build)
     #[serde(default)]
     pub task: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PruneParams {
+    /// Package scope to prune to
+    pub scope: String,
+    /// Output directory (default: out)
+    #[serde(default)]
+    pub out_dir: Option<String>,
+    /// Include docker output
+    #[serde(default)]
+    pub docker: bool,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct QueryParams {
+    /// Query string (e.g., "Why does A depend on B?")
+    pub query: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct LintParams {
+    /// Specific packages to lint (empty = all)
+    #[serde(default)]
+    pub packages: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct InfoParams {
+    /// Package name (empty = workspace info)
+    #[serde(default)]
+    pub package: Option<String>,
 }
 
 // ============================================================================
@@ -300,6 +333,135 @@ impl TurboServer {
             String::from_utf8_lossy(&output.stdout).to_string(),
         )]))
     }
+
+    #[tool(description = "Prune workspace to minimal subset for a package")]
+    async fn prune(
+        &self,
+        Parameters(p): Parameters<PruneParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let cwd = self.cwd.lock().await.clone();
+        let mut cmd = tokio::process::Command::new("turbo");
+        cmd.arg("prune").arg(&p.scope);
+
+        if let Some(out) = &p.out_dir {
+            cmd.arg("--out-dir").arg(out);
+        }
+        if p.docker {
+            cmd.arg("--docker");
+        }
+
+        let output = cmd
+            .current_dir(&cwd)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .map_err(|e| McpError::internal_error(format!("Exec error: {e}"), None))?;
+
+        let response = serde_json::json!({
+            "scope": p.scope,
+            "success": output.status.success(),
+            "stdout": String::from_utf8_lossy(&output.stdout),
+            "stderr": String::from_utf8_lossy(&output.stderr)
+        });
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
+    }
+
+    #[tool(description = "Query the task graph (e.g., 'Why does A depend on B?')")]
+    async fn query(
+        &self,
+        Parameters(p): Parameters<QueryParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let output = self.run_turbo(&["query", &p.query]).await?;
+
+        let response = serde_json::json!({
+            "query": p.query,
+            "success": output.status.success(),
+            "result": String::from_utf8_lossy(&output.stdout),
+            "stderr": String::from_utf8_lossy(&output.stderr)
+        });
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
+    }
+
+    #[tool(description = "Run turbo lint to check configuration")]
+    async fn lint(
+        &self,
+        Parameters(p): Parameters<LintParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let cwd = self.cwd.lock().await.clone();
+        let mut cmd = tokio::process::Command::new("turbo");
+        cmd.arg("lint");
+
+        for pkg in &p.packages {
+            cmd.arg("--filter").arg(pkg);
+        }
+
+        let output = cmd
+            .current_dir(&cwd)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .map_err(|e| McpError::internal_error(format!("Exec error: {e}"), None))?;
+
+        let response = serde_json::json!({
+            "success": output.status.success(),
+            "stdout": String::from_utf8_lossy(&output.stdout),
+            "stderr": String::from_utf8_lossy(&output.stderr)
+        });
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
+    }
+
+    #[tool(description = "Get package or workspace info")]
+    async fn info(
+        &self,
+        Parameters(p): Parameters<InfoParams>,
+    ) -> Result<CallToolResult, McpError> {
+        let cwd = self.cwd.lock().await.clone();
+
+        // Read package.json for the target
+        let pkg_path = p.package.as_ref().map_or_else(
+            || cwd.join("package.json"),
+            |pkg| {
+                // Try to find package in node_modules or packages directory
+                let node_path = cwd.join("node_modules").join(pkg).join("package.json");
+                if node_path.exists() {
+                    node_path
+                } else {
+                    // Fallback to root
+                    cwd.join("package.json")
+                }
+            },
+        );
+
+        let content = tokio::fs::read_to_string(&pkg_path)
+            .await
+            .map_err(|e| McpError::internal_error(format!("Read error: {e}"), None))?;
+
+        let pkg: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| McpError::internal_error(format!("Parse error: {e}"), None))?;
+
+        // Also get turbo.json if available
+        let turbo_config = self.read_turbo_json().await.ok();
+
+        let response = serde_json::json!({
+            "package": pkg,
+            "turbo_config": turbo_config
+        });
+
+        Ok(CallToolResult::success(vec![Content::text(
+            serde_json::to_string_pretty(&response).unwrap(),
+        )]))
+    }
 }
 
 // ============================================================================
@@ -327,8 +489,8 @@ impl rmcp::ServerHandler for TurboServer {
                 website_url: Some("https://github.com/kjanat/zed-turborepo".into()),
             },
             instructions: Some(
-                "Turbo MCP server. Resources: turbo://config, turbo://tasks, turbo://packages. \
-                 Tools: workdir, daemon, run, graph."
+                "Turbo MCP server. Resources: turbo://config, turbo://tasks, turbo://packages, turbo://cache. \
+                 Tools: workdir, daemon, run, graph, prune, query, lint, info."
                     .into(),
             ),
         }
@@ -372,6 +534,19 @@ impl rmcp::ServerHandler for TurboServer {
                         uri: URI_PACKAGES.into(),
                         name: "Packages".into(),
                         description: Some("Workspace packages".into()),
+                        mime_type: Some("application/json".into()),
+                        size: None,
+                        title: None,
+                        icons: None,
+                        meta: None,
+                    },
+                    None,
+                ),
+                Annotated::new(
+                    RawResource {
+                        uri: URI_CACHE.into(),
+                        name: "Cache Status".into(),
+                        description: Some("Cache configuration and status".into()),
                         mime_type: Some("application/json".into()),
                         size: None,
                         title: None,
@@ -448,6 +623,51 @@ impl rmcp::ServerHandler for TurboServer {
 
                 Ok(ReadResourceResult {
                     contents: vec![ResourceContents::text(content, request.uri)],
+                })
+            }
+            URI_CACHE => {
+                let cwd = self.cwd.lock().await.clone();
+
+                // Get remote cache config from turbo.json
+                let remote_cache = self
+                    .read_turbo_json()
+                    .await
+                    .ok()
+                    .and_then(|c| c.get("remoteCache").cloned());
+
+                // Check daemon status for cache info
+                let daemon_output = tokio::process::Command::new("turbo")
+                    .args(["daemon", "status"])
+                    .current_dir(&cwd)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .output()
+                    .await
+                    .ok();
+
+                let daemon_status = daemon_output
+                    .as_ref()
+                    .map(|o| String::from_utf8_lossy(&o.stdout).to_string());
+
+                // Get cache directory
+                let cache_dir = self
+                    .read_turbo_json()
+                    .await
+                    .ok()
+                    .and_then(|c| c.get("cacheDir").and_then(|v| v.as_str()).map(String::from))
+                    .unwrap_or_else(|| "node_modules/.cache/turbo".into());
+
+                let response = serde_json::json!({
+                    "cacheDir": cache_dir,
+                    "remoteCache": remote_cache,
+                    "daemonStatus": daemon_status
+                });
+
+                Ok(ReadResourceResult {
+                    contents: vec![ResourceContents::text(
+                        serde_json::to_string_pretty(&response).unwrap(),
+                        request.uri,
+                    )],
                 })
             }
             _ => Err(McpError::resource_not_found(

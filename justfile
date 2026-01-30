@@ -53,3 +53,31 @@ tree:
 # Download turborepo-lsp binary from VS Code marketplace
 download-lsp:
     ./scripts/download-lsp.sh
+
+# Run all tests
+test:
+    cargo test --workspace
+
+# Build turbo-mcp (debug)
+build-mcp:
+    cargo build -p turbo-mcp
+
+# Build turbo-mcp (release)
+build-mcp-release:
+    cargo build -p turbo-mcp --release
+
+# Install turbo-mcp locally
+install-mcp:
+    cargo install --path crates/turbo-mcp
+
+# Build turbo-lsp (release)
+build-lsp-release:
+    cargo build -p turbo-lsp --release
+
+# Install turbo-lsp locally
+install-lsp:
+    cargo install --path crates/turbo-lsp
+
+# Package the Zed extension
+package:
+    cd crates/turbo-zed && cargo build --release --target wasm32-wasip1
