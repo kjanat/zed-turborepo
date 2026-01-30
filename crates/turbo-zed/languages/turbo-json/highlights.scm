@@ -101,6 +101,11 @@
   (string_content) @operator
   (#match? @operator "^\\^"))
 
+; Negation prefix (! for globs and env)
+(string
+  (string_content) @operator
+  (#match? @operator "^!"))
+
 ; Package#task syntax
 (string
   (string_content) @function
