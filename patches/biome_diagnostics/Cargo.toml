@@ -79,8 +79,8 @@ features = ["derive"]
 version = "1.4.0"
 
 [dependencies.schemars]
-workspace = true
-optional  = true
+version  = "0.8"
+optional = true
 
 [dependencies.serde]
 workspace = true
