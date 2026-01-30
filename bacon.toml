@@ -1,0 +1,189 @@
+#:schema https://dystroy.org/bacon/.bacon.schema.json
+#:tombi schema.strict = false
+#
+# bacon configuration for bun-docs-mcp-proxy
+# Complete help: https://dystroy.org/bacon/config/
+
+default_job          = "check"
+env.CARGO_TERM_COLOR = "always"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Check jobs
+# ─────────────────────────────────────────────────────────────────────────────
+
+[jobs.check]
+command     = ["cargo", "check"]
+need_stdout = false
+
+[jobs.check-all]
+command     = ["cargo", "check", "--all-targets", "--all-features"]
+need_stdout = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Clippy jobs
+# ─────────────────────────────────────────────────────────────────────────────
+
+[jobs.clippy]
+command     = ["cargo", "clippy"]
+need_stdout = false
+
+[jobs.clippy-all]
+command     = ["cargo", "clippy", "--all-targets", "--all-features"]
+need_stdout = false
+
+[jobs.pedantic]
+command     = ["cargo", "clippy", "--", "-W", "clippy::pedantic"]
+need_stdout = false
+
+# Strict clippy: nursery + pedantic (very noisy but useful for audits)
+[jobs.strict]
+command     = [
+  "cargo",
+  "clippy",
+  "--all-targets",
+  "--all-features",
+  "--",
+  "-W",
+  "clippy::pedantic",
+  "-W",
+  "clippy::nursery",
+]
+need_stdout = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Test jobs
+# ─────────────────────────────────────────────────────────────────────────────
+
+[jobs.test]
+command     = ["cargo", "test"]
+need_stdout = true
+
+# Unit tests only (no integration tests)
+[jobs.test-unit]
+command     = ["cargo", "test", "--lib"]
+need_stdout = true
+
+# Integration tests (requires network)
+[jobs.test-int]
+command     = ["cargo", "test", "--features", "integration-tests"]
+need_stdout = true
+
+[jobs.nextest]
+command     = ["cargo", "nextest", "run", "--hide-progress-bar", "--failure-output", "final"]
+need_stdout = true
+analyzer    = "nextest"
+
+# Nextest with all features (including integration tests)
+[jobs.nextest-all]
+command     = [
+  "cargo",
+  "nextest",
+  "run",
+  "--all-features",
+  "--hide-progress-bar",
+  "--failure-output",
+  "final"
+]
+need_stdout = true
+analyzer    = "nextest"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Documentation jobs
+# ─────────────────────────────────────────────────────────────────────────────
+
+[jobs.doc]
+command     = ["cargo", "doc", "--no-deps"]
+need_stdout = false
+
+[jobs.doc-open]
+command     = ["cargo", "doc", "--no-deps", "--open"]
+need_stdout = false
+on_success  = "back"
+
+# Doc with private items (useful for internal review)
+[jobs.doc-private]
+command     = ["cargo", "doc", "--no-deps", "--document-private-items"]
+need_stdout = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Run jobs
+# ─────────────────────────────────────────────────────────────────────────────
+
+[jobs.run]
+command        = ["cargo", "run", "--bin", "bun-docs-mcp-proxy"]
+need_stdout    = true
+allow_warnings = true
+background     = true
+
+# Run in release mode
+[jobs.run-release]
+command        = ["cargo", "run", "--release", "--bin", "bun-docs-mcp-proxy"]
+need_stdout    = true
+allow_warnings = true
+background     = true
+
+# Run with debug logging
+[jobs.run-debug]
+command        = ["cargo", "run", "--bin", "bun-docs-mcp-proxy"]
+env            = { RUST_LOG = "debug" }
+need_stdout    = true
+allow_warnings = true
+background     = false
+
+# Show help
+[jobs.help]
+command        = ["cargo", "run", "--bin", "bun-docs-mcp-proxy", "--", "--help"]
+need_stdout    = true
+allow_warnings = true
+
+# CLI search mode test
+[jobs.search]
+command        = [
+  "cargo",
+  "run",
+  "--release",
+  "--bin",
+  "bun-docs-mcp-proxy",
+  "--",
+  "-s",
+  "Bun.serve"
+]
+need_stdout    = true
+allow_warnings = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Build jobs
+# ─────────────────────────────────────────────────────────────────────────────
+
+[jobs.build]
+command     = ["cargo", "build"]
+need_stdout = false
+
+[jobs.build-release]
+command     = ["cargo", "build", "--release"]
+need_stdout = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Security/audit jobs
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Run cargo-deny checks (licenses, advisories, bans)
+[jobs.deny]
+command     = ["cargo", "deny", "check"]
+need_stdout = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Keybindings
+# ─────────────────────────────────────────────────────────────────────────────
+
+[keybindings]
+c     = "job:clippy-all"
+p     = "job:pedantic"
+alt-s = "job:strict"         # alt+s for strict (s is summary toggle)
+t     = "job:test"
+n     = "job:nextest"
+u     = "job:test-unit"
+i     = "job:test-int"
+b     = "job:build-release"
+r     = "job:run-debug"
+h     = "job:help"

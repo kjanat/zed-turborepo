@@ -1,0 +1,13 @@
+error: unexpected token
+ --> tests/macros/unknown_message_attr.rs:4:22
+  |
+4 | #[diagnostic(message(unknown))]
+  |                      ^^^^^^^
+
+error: expected expression, found end of macro arguments
+ --> tests/macros/unknown_message_attr.rs:3:17
+  |
+3 | #[derive(Debug, Diagnostic)]
+  |                 ^^^^^^^^^^
+  |
+  = note: this error originates in the derive macro `Diagnostic` (in Nightly builds, run with -Z macro-backtrace for more info)

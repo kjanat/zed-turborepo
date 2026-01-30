@@ -1,0 +1,99 @@
+[workspace]
+resolver = "3"
+members  = ["crates/*", "patches/*"]
+
+[workspace.package]
+version     = "2.8.0"
+edition     = "2024"
+description = "Tools and instant feedback for your build system"
+readme      = "README.md"
+repository  = "https://github.com/kjanat/zed-turborepo"
+license     = "MIT"
+keywords    = ["extension", "lsp", "monorepo", "turbo", "turborepo", "vercel", "zed"]
+categories  = ["development-tools", "text-editors"]
+publish     = false
+
+[workspace.dependencies]
+biome_diagnostics = { path = "patches/biome_diagnostics" }
+biome_rowan       = { path = "patches/biome_rowan" }
+schemars          = "0.8"
+serde             = { version = "1", features = ["derive"] }
+tower-lsp         = "0.20"
+
+[workspace.dependencies.tokio]
+version  = "1"
+features = ["io-std", "macros", "rt-multi-thread"]
+
+[workspace.dependencies.turborepo-lsp]
+git              = "https://github.com/vercel/turbo"
+tag              = "v2.8.0"                           # branch = "main"
+default-features = true
+
+[workspace.lints.clippy]
+cargo_common_metadata        = "allow"  # patched biome crates lack README files
+items-after-statements       = "warn"
+missing_errors_doc           = "warn"
+missing_panics_doc           = "allow"
+multiple_crate_versions      = "allow"  # upstream turborepo-lsp deps
+must_use_candidate           = "warn"
+no-effect-underscore-binding = "warn"
+too_many_arguments           = "allow"
+
+[workspace.lints.clippy.cargo]
+level    = "deny"
+priority = -1
+
+[workspace.lints.clippy.complexity]
+level    = "deny"
+priority = -1
+
+[workspace.lints.clippy.correctness]
+level    = "forbid"
+priority = -1
+
+[workspace.lints.clippy.nursery]
+level    = "warn"
+priority = -1
+
+[workspace.lints.clippy.pedantic]
+level    = "deny"
+priority = -1
+
+[workspace.lints.clippy.perf]
+level    = "forbid"
+priority = -1
+
+[workspace.lints.clippy.style]
+level    = "warn"
+priority = -1
+
+[workspace.lints.clippy.suspicious]
+level    = "warn"
+priority = -1
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+# Patch all biome crates to consistent 0.5.7 versions
+[patch.crates-io]
+biome_diagnostics   = { path = "patches/biome_diagnostics" }
+biome_json_syntax   = { path = "patches/biome_json_syntax" }
+biome_parser        = { path = "patches/biome_parser" }
+biome_rowan         = { path = "patches/biome_rowan" }
+biome_unicode_table = { path = "patches/biome_unicode_table" }
+
+# [profile.dev]
+# opt-level = 0
+# debug     = 0
+
+# [profile.release]
+# lto = "off"
+
+# [profile.release-turborepo]
+# inherits = "release"
+# strip    = true
+
+# [profile.release-turborepo-lsp]
+# inherits  = "release"
+# opt-level = "z"
+# strip     = true

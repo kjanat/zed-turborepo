@@ -1,0 +1,7 @@
+[
+  {
+    "label": "turbo run $ZED_CUSTOM_task",
+    "command": "turbo run $ZED_CUSTOM_task",
+    "tags": ["turbo-task"]
+  }
+]

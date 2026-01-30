@@ -1,0 +1,19 @@
+{
+  "formatter": [
+    {
+      "external": {
+        "command": "dprint",
+        "arguments": ["fmt", "--stdin", "{buffer_path}"]
+      }
+    }
+  ],
+  "prettier": { "allowed": false },
+  "languages": { "TOML": { "wrap_guides": [100], "language_servers": ["tombi", "..."] } },
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "cargo": { "allFeatures": true }
+      }
+    }
+  }
+}

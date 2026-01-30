@@ -1,0 +1,20 @@
+#:schema https://raw.githubusercontent.com/kjanat/zed-editor/03d96a897a2dbe98755c24375eec790b834eaaf7/crates/extension_api/schemas/language-config.schema.json
+
+name                          = "Turbo"
+grammar                       = "jsonc"
+path_suffixes                 = ["turbo.json", "turbo.jsonc"]
+line_comments                 = ["// "]
+tab_size                      = 2
+scope_opt_in_language_servers = ["json-language-server"]
+
+[documentation_comment]
+start    = "/**"
+end      = "*/"
+prefix   = "*"
+tab_size = 2
+
+[block_comment]
+start    = "/*"
+end      = "*/"
+prefix   = "*"
+tab_size = 1
