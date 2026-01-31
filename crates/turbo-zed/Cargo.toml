@@ -14,6 +14,7 @@ publish.workspace     = true
 crate-type = ["cdylib"]
 
 [dependencies]
+indexmap.workspace          = true
 schemars.workspace          = true
 serde.workspace             = true
 zed_extension_api.workspace = true

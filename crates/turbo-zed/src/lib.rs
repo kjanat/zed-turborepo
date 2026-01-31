@@ -444,7 +444,7 @@ zed::register_extension!(TurboExtension);
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use indexmap::IndexSet;
 
     use super::*;
 
@@ -452,8 +452,8 @@ mod tests {
     /// - `// "key":` = commented-out key (single //)
     /// - `"key":` = active key
     /// - `/// ...` = doc comment (ignored)
-    fn extract_jsonc_keys(input: &str) -> HashSet<String> {
-        let mut keys = HashSet::new();
+    fn extract_jsonc_keys(input: &str) -> IndexSet<String> {
+        let mut keys = IndexSet::new();
         for line in input.lines() {
             let trimmed = line.trim();
             // Skip doc comments (///)
@@ -477,10 +477,10 @@ mod tests {
     /// Extract key from `"key": ...` pattern
     fn extract_key(s: &str) -> Option<String> {
         let s = s.trim();
-        if s.starts_with('"') {
-            if let Some(end) = s[1..].find('"') {
-                let key = &s[1..=end];
-                if s[end + 2..].trim_start().starts_with(':') {
+        if let Some(stripped) = s.strip_prefix('"') {
+            if let Some(end) = stripped.find('"') {
+                let key = &stripped[..end];
+                if stripped[end + 1..].trim_start().starts_with(':') {
                     return Some(key.to_string());
                 }
             }
@@ -496,7 +496,7 @@ mod tests {
         let schema_props = schema_json["properties"]
             .as_object()
             .expect("schema should have properties");
-        let schema_keys: HashSet<_> = schema_props.keys().cloned().collect();
+        let schema_keys: IndexSet<_> = schema_props.keys().cloned().collect();
 
         // Extract keys from default settings (both active and commented-out)
         let settings_keys = extract_jsonc_keys(DEFAULT_MCP_SETTINGS);
