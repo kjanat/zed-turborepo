@@ -1,0 +1,18 @@
+{
+  "name": "@turbo/zed",
+  "version": "2.8.0",
+  "private": true,
+  "scripts": {
+    "build": "cargo build -p turbo-zed",
+    "build:release": "cargo build -p turbo-zed --release",
+    "build:wasm": "cargo build -p turbo-zed --release --target wasm32-wasip2",
+    "check": "cargo check -p turbo-zed",
+    "test": "cargo test -p turbo-zed",
+    "lint": "cargo clippy -p turbo-zed",
+    "fmt": "cargo fmt -p turbo-zed",
+    "clean": "cargo clean -p turbo-zed"
+  },
+  "dependencies": {
+    "@turbo/core": "workspace:*"
+  }
+}

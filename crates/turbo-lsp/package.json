@@ -1,0 +1,14 @@
+{
+  "name": "@turbo/lsp",
+  "version": "2.8.0",
+  "private": true,
+  "scripts": {
+    "build": "cargo build -p turbo-lsp",
+    "build:release": "cargo build -p turbo-lsp --release",
+    "check": "cargo check -p turbo-lsp",
+    "test": "cargo test -p turbo-lsp",
+    "lint": "cargo clippy -p turbo-lsp",
+    "fmt": "cargo fmt -p turbo-lsp",
+    "clean": "cargo clean -p turbo-lsp"
+  }
+}

@@ -7,20 +7,18 @@ schema_version = 1
 authors        = ["Kaj Kowalski <dev@kajkowalski.nl>"]
 description    = "Tools and instant feedback for your build system"
 repository     = "https://github.com/kjanat/zed-turborepo"
-themes         = []
-icon_themes    = []
-languages      = ["languages/turbo-json"]
 
 [grammars.json]
 repository = "https://github.com/tree-sitter/tree-sitter-json"
 rev        = "ee35a6ebefcef0c5c416c0d1ccec7370cfca5a24"         # v0.24.8 (supports comments)
 
-[language_servers.turborepo-lsp]
-languages = ["Turbo"]
+[language_servers.turbo-lsp]
+languages = ["JSON", "JSONC"]
 # code_action_kinds = []
 
-[language_servers.turborepo-lsp.language_ids]
-"Turbo" = "json"
+[language_servers.turbo-lsp.language_ids]
+"JSON"  = "json"
+"JSONC" = "json"
 
 [[capabilities]]
 kind = "download_file"
@@ -34,7 +32,27 @@ path = ["**"]
 
 [[capabilities]]
 kind    = "process:exec"
-command = "turbo"
+command = "**"
 args    = ["**"]
+
+# [[capabilities]]
+# kind    = "process:exec"
+# command = "turbo"
+# args    = ["**"]
+
+# [[capabilities]]
+# kind    = "process:exec"
+# command = "turborepo-lsp"
+# args    = ["**"]
+
+# [[capabilities]]
+# kind    = "process:exec"
+# command = "turbo-mcp"
+# args    = ["**"]
+
+# [[capabilities]]
+# kind    = "process:exec"
+# command = "turbo-lsp"
+# args    = ["**"]
 
 [context_servers.turbo-mcp]

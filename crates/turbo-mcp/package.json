@@ -1,0 +1,14 @@
+{
+  "name": "@turbo/mcp",
+  "version": "2.8.0",
+  "private": true,
+  "scripts": {
+    "build": "cargo build -p turbo-mcp",
+    "build:release": "cargo build -p turbo-mcp --release",
+    "check": "cargo check -p turbo-mcp",
+    "test": "cargo test -p turbo-mcp",
+    "lint": "cargo clippy -p turbo-mcp",
+    "fmt": "cargo fmt -p turbo-mcp",
+    "clean": "cargo clean -p turbo-mcp"
+  }
+}

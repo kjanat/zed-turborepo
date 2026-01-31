@@ -1,0 +1,32 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["target/debug/**", "target/release/**", "target/wasm32-wasip2/**"],
+      "cache": true
+    },
+    "build:release": {
+      "dependsOn": ["^build:release"],
+      "outputs": ["target/release/**", "target/wasm32-wasip2/**"],
+      "cache": true
+    },
+    "check": {
+      "dependsOn": ["^check"],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "cache": true
+    },
+    "lint": {
+      "cache": true
+    },
+    "fmt": {
+      "cache": false
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}
