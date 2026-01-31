@@ -8,7 +8,7 @@
     }
   ],
   "prettier": { "allowed": false },
-  "languages": { "TOML": { "wrap_guides": [100], "language_servers": ["tombi", "..."] } },
+  "languages": { "TOML": { "wrap_guides": [120], "language_servers": ["tombi", "..."] } },
   "lsp": {
     "rust-analyzer": {
       "initialization_options": {
