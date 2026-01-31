@@ -1,19 +1,49 @@
 use std::fs;
 
+use schemars::JsonSchema;
+use serde::Deserialize;
 use zed_extension_api::{
-    self as zed, DownloadedFileType, LanguageServerId, LanguageServerInstallationStatus, Result,
+    self as zed, ContextServerConfiguration, ContextServerId, DownloadedFileType, LanguageServerId,
+    LanguageServerInstallationStatus, Project, Result,
     http_client::{HttpMethod, HttpRequest},
     process::Command,
     serde_json::{self, Value},
-    settings::LspSettings,
+    settings::{ContextServerSettings, LspSettings},
 };
+
+/// Settings for the turbo-mcp context server
+#[derive(Debug, Deserialize, JsonSchema)]
+#[allow(dead_code)] // Only used for schema generation
+struct TurboMcpSettings {
+    /// Path to the turbo-mcp binary
+    binary_path: Option<String>,
+}
+
+/// Default settings JSONC for the MCP server configuration UI
+const DEFAULT_MCP_SETTINGS: &str = r#"{
+  /// Path to the turbo-mcp binary (optional)
+  /// If not set, the extension will look for turbo-mcp in your PATH
+  // "binary_path": "/path/to/turbo-mcp"
+}"#;
+
+const MCP_SERVER_ID: &str = "turbo-mcp";
+const MCP_BINARY_NAME: &str = "turbo-mcp";
 
 const MARKETPLACE_API_URL: &str =
     "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery";
 const EXTENSION_ID: &str = "vercel.turbo-vsc";
 
+const LSP_SETTINGS_EXAMPLE: &str = r#"   {
+     "lsp": {
+       "turborepo-lsp": {
+         "binary": { "path": "/path/to/turborepo-lsp" }
+       }
+     }
+   }"#;
+
 struct TurboExtension {
-    cached_binary_path: Option<String>,
+    cached_lsp_binary_path: Option<String>,
+    cached_mcp_binary_path: Option<String>,
 }
 
 impl TurboExtension {
@@ -35,13 +65,13 @@ impl TurboExtension {
         let binary_names = Self::get_binary_names();
         for name in &binary_names {
             if let Some(path) = worktree.which(name) {
-                self.cached_binary_path = Some(path.clone());
+                self.cached_lsp_binary_path = Some(path.clone());
                 return Ok(path);
             }
         }
 
         // Check cached path
-        if let Some(ref path) = self.cached_binary_path
+        if let Some(ref path) = self.cached_lsp_binary_path
             && fs::metadata(path).is_ok_and(|m| m.is_file())
         {
             return Ok(path.clone());
@@ -59,7 +89,7 @@ impl TurboExtension {
                 if name_str.starts_with("turbo-vsc-") {
                     let binary_path: String = format!("{name_str}/extension/out/{binary_name}");
                     if fs::metadata(&binary_path).is_ok_and(|m| m.is_file()) {
-                        self.cached_binary_path = Some(binary_path.clone());
+                        self.cached_lsp_binary_path = Some(binary_path.clone());
                         return Ok(binary_path);
                     }
                 }
@@ -76,24 +106,27 @@ impl TurboExtension {
                 );
 
                 format!(
-                    "turborepo-lsp auto-download failed: {download_error}\n\n\
-                    Manual installation options:\n\n\
-                    1. Build from source:\n\
-                       git clone https://github.com/vercel/turborepo\n\
-                       cd turborepo/crates/turborepo-lsp\n\
-                       cargo build --release\n\
-                       # Binary at target/release/turborepo-lsp\n\n\
-                    2. Extract from VS Code extension:\n\
-                       - Install 'Turborepo' extension in VS Code\n\
-                       - Find binary at ~/.vscode/extensions/vercel.turbo-vsc-*/out/{binary_name}\n\n\
-                    3. Configure path in Zed settings.json:\n\
-                       {{\n\
-                         \"lsp\": {{\n\
-                           \"turborepo-lsp\": {{\n\
-                             \"binary\": {{ \"path\": \"/path/to/turborepo-lsp\" }}\n\
-                           }}\n\
-                         }}\n\
-                       }}"
+                    r"turborepo-lsp auto-download failed: {download_error}
+
+Manual installation options:
+
+1. Build from source:
+   ```sh
+   git clone https://github.com/vercel/turborepo
+   cd turborepo/crates/turborepo-lsp
+   cargo build --release
+   # Binary at target/release/turborepo-lsp
+   ```
+
+2. Extract from VS Code extension:
+   - Install 'Turborepo' extension in VS Code
+   - Find binary at ~/.vscode/extensions/vercel.turbo-vsc-*/out/{binary_name}
+
+3. Configure path in Zed settings.json:
+   ```json
+{LSP_SETTINGS_EXAMPLE}
+   ```
+"
                 )
             })
     }
@@ -212,7 +245,7 @@ impl TurboExtension {
 
         // Check if already downloaded
         if fs::metadata(&binary_path).is_ok_and(|m| m.is_file()) {
-            self.cached_binary_path = Some(binary_path.clone());
+            self.cached_lsp_binary_path = Some(binary_path.clone());
             return Ok(binary_path);
         }
 
@@ -250,7 +283,7 @@ impl TurboExtension {
             ));
         }
 
-        self.cached_binary_path = Some(binary_path.clone());
+        self.cached_lsp_binary_path = Some(binary_path.clone());
         Ok(binary_path)
     }
 
@@ -265,6 +298,34 @@ impl TurboExtension {
                 }
             }
         }
+    }
+
+    /// Find the turbo-mcp binary for the MCP server
+    ///
+    /// Search order:
+    /// 1. Custom path from context server settings
+    /// 2. Cached path from previous lookup
+    /// 3. Default to "turbo-mcp" (resolved from PATH by OS)
+    fn mcp_server_binary_path(&self, project: &Project) -> String {
+        // Check settings for custom path first
+        if let Ok(settings) = ContextServerSettings::for_project(MCP_SERVER_ID, project)
+            && let Some(settings) = settings.settings
+            && let Some(path) = settings.get("binary_path").and_then(|v| v.as_str())
+            && fs::metadata(path).is_ok_and(|m| m.is_file())
+        {
+            return path.to_string();
+        }
+
+        // Check cached path
+        if let Some(ref path) = self.cached_mcp_binary_path
+            && fs::metadata(path).is_ok_and(|m| m.is_file())
+        {
+            return path.clone();
+        }
+
+        // Default to turbo-mcp in PATH - OS will resolve it
+        // If not found, user will see clear error from Zed
+        MCP_BINARY_NAME.to_string()
     }
 
     /// Ensure the turbo daemon is running (required by turborepo-lsp)
@@ -287,7 +348,8 @@ impl TurboExtension {
 impl zed::Extension for TurboExtension {
     fn new() -> Self {
         Self {
-            cached_binary_path: None,
+            cached_lsp_binary_path: None,
+            cached_mcp_binary_path: None,
         }
     }
 
@@ -348,6 +410,111 @@ impl zed::Extension for TurboExtension {
             })
         }
     }
+
+    fn context_server_command(
+        &mut self,
+        _context_server_id: &ContextServerId,
+        project: &Project,
+    ) -> Result<zed::Command> {
+        Ok(zed::Command {
+            command: self.mcp_server_binary_path(project),
+            args: vec![],
+            env: vec![],
+        })
+    }
+
+    fn context_server_configuration(
+        &mut self,
+        _context_server_id: &ContextServerId,
+        _project: &Project,
+    ) -> Result<Option<ContextServerConfiguration>> {
+        Ok(Some(ContextServerConfiguration {
+            installation_instructions: include_str!(
+                "../configuration/installation_instructions.md"
+            )
+            .to_string(),
+            default_settings: DEFAULT_MCP_SETTINGS.to_string(),
+            settings_schema: serde_json::to_string(&schemars::schema_for!(TurboMcpSettings))
+                .map_err(|e| e.to_string())?,
+        }))
+    }
 }
 
 zed::register_extension!(TurboExtension);
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::*;
+
+    /// Extract keys from JSONC:
+    /// - `// "key":` = commented-out key (single //)
+    /// - `"key":` = active key
+    /// - `/// ...` = doc comment (ignored)
+    fn extract_jsonc_keys(input: &str) -> HashSet<String> {
+        let mut keys = HashSet::new();
+        for line in input.lines() {
+            let trimmed = line.trim();
+            // Skip doc comments (///)
+            if trimmed.starts_with("///") {
+                continue;
+            }
+            // Check for commented-out key: // "key":
+            if let Some(rest) = trimmed.strip_prefix("//") {
+                if let Some(key) = extract_key(rest.trim()) {
+                    keys.insert(key);
+                }
+            }
+            // Check for active key: "key":
+            else if let Some(key) = extract_key(trimmed) {
+                keys.insert(key);
+            }
+        }
+        keys
+    }
+
+    /// Extract key from `"key": ...` pattern
+    fn extract_key(s: &str) -> Option<String> {
+        let s = s.trim();
+        if s.starts_with('"') {
+            if let Some(end) = s[1..].find('"') {
+                let key = &s[1..=end];
+                if s[end + 2..].trim_start().starts_with(':') {
+                    return Some(key.to_string());
+                }
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn default_settings_keys_match_schema() {
+        // Get schema properties
+        let schema = schemars::schema_for!(TurboMcpSettings);
+        let schema_json = serde_json::to_value(&schema).unwrap();
+        let schema_props = schema_json["properties"]
+            .as_object()
+            .expect("schema should have properties");
+        let schema_keys: HashSet<_> = schema_props.keys().cloned().collect();
+
+        // Extract keys from default settings (both active and commented-out)
+        let settings_keys = extract_jsonc_keys(DEFAULT_MCP_SETTINGS);
+
+        // All keys in default settings must exist in schema
+        for key in &settings_keys {
+            assert!(
+                schema_keys.contains(key),
+                "default settings key '{key}' not found in schema. Schema keys: {schema_keys:?}"
+            );
+        }
+
+        // All schema keys should appear in default settings
+        for key in &schema_keys {
+            assert!(
+                settings_keys.contains(key),
+                "schema key '{key}' not in default settings. Settings keys: {settings_keys:?}"
+            );
+        }
+    }
+}

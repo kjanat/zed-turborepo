@@ -1,9 +1,9 @@
 //! Package and task discovery for Turborepo workspaces
 
-use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
+use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 
 use crate::config::TurboConfig;
@@ -11,6 +11,7 @@ use crate::error::{Error, Result};
 
 /// Discovered package information
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_field_names)]
 pub struct Package {
     /// Package name from package.json
     pub name: String,
@@ -20,7 +21,7 @@ pub struct Package {
     pub package_json_path: PathBuf,
     /// Scripts defined in package.json
     #[serde(default)]
-    pub scripts: HashMap<String, String>,
+    pub scripts: IndexMap<String, String>,
 }
 
 /// Task information combining turbo.json and package.json data
@@ -60,6 +61,9 @@ impl PackageDiscovery {
     }
 
     /// Get or load the turbo config
+    ///
+    /// # Errors
+    /// Returns error if config cannot be found or parsed
     pub async fn config(&mut self) -> Result<&TurboConfig> {
         if self.config.is_none() {
             self.config = Some(TurboConfig::find_and_load(&self.root).await?);
@@ -68,6 +72,9 @@ impl PackageDiscovery {
     }
 
     /// Discover all packages in the workspace
+    ///
+    /// # Errors
+    /// Returns error if package discovery fails
     pub async fn discover_packages(&self) -> Result<Vec<Package>> {
         // Try `turbo ls --output json` first
         if let Ok(packages) = self.discover_via_turbo().await {
@@ -122,7 +129,7 @@ impl PackageDiscovery {
                     .await
                     .unwrap_or_default()
             } else {
-                HashMap::new()
+                IndexMap::new()
             };
 
             result.push(Package {
@@ -255,7 +262,7 @@ impl PackageDiscovery {
     }
 
     /// Read scripts from a package.json
-    async fn read_package_scripts(path: &Path) -> Result<HashMap<String, String>> {
+    async fn read_package_scripts(path: &Path) -> Result<IndexMap<String, String>> {
         let content = tokio::fs::read_to_string(path)
             .await
             .map_err(|e| Error::ReadFile {
@@ -281,12 +288,15 @@ impl PackageDiscovery {
     }
 
     /// Discover all tasks across packages
+    ///
+    /// # Errors
+    /// Returns error if config or packages cannot be discovered
     pub async fn discover_tasks(&mut self) -> Result<Vec<TaskInfo>> {
         let config = self.config().await?.clone();
         let packages = self.discover_packages().await?;
 
         // Collect all unique task names from package scripts
-        let mut task_packages: HashMap<String, Vec<String>> = HashMap::new();
+        let mut task_packages: IndexMap<String, Vec<String>> = IndexMap::new();
         for pkg in &packages {
             for script_name in pkg.scripts.keys() {
                 task_packages
@@ -316,7 +326,10 @@ impl PackageDiscovery {
     }
 
     /// Get unique task names across all packages
-    pub async fn task_names(&mut self) -> Result<HashSet<String>> {
+    ///
+    /// # Errors
+    /// Returns error if task discovery fails
+    pub async fn task_names(&mut self) -> Result<IndexSet<String>> {
         let tasks = self.discover_tasks().await?;
         Ok(tasks.into_iter().map(|t| t.name).collect())
     }

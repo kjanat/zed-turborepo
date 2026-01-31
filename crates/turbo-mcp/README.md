@@ -12,6 +12,10 @@ Or download from [releases](https://github.com/kjanat/zed-turborepo/releases).
 
 ## Configuration
 
+### VS Code
+
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_turbo--mcp-0098FF?style=flat-square&logo=visualstudiocode&logoColor=ffffff)](vscode:mcp/install?%7B%22name%22%3A%22turbo-mcp%22%2C%22type%22%3A%22stdio%22%2C%22command%22%3A%22turbo-mcp%22%7D)
+
 ### Claude Desktop
 
 Add to `~/.config/claude/claude_desktop_config.json`:

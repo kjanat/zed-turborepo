@@ -1,7 +1,7 @@
 #:schema /home/kjanat/projects/zed-editor/crates/extension_api/schemas/extension.schema.json
 
 id             = "turbo-zed"
-name           = "Turborepo LSP"
+name           = "Turborepo"
 version        = "0.1.0"
 schema_version = 1
 authors        = ["Kaj Kowalski <dev@kajkowalski.nl>"]
@@ -32,8 +32,9 @@ kind = "download_file"
 host = "*.gallerycdn.vsassets.io"
 path = ["**"]
 
-# [context_servers.turborepo]
+[[capabilities]]
+kind    = "process:exec"
+command = "turbo"
+args    = ["**"]
 
-# [slash_commands.s]
-# description       = ""
-# requires_argument = true
+[context_servers.turbo-mcp]

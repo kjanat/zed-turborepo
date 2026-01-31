@@ -43,7 +43,7 @@ struct ResourceDef {
     description: &'static str,
 }
 
-/// All available resources - single source of truth for list_resources and instructions
+/// All available resources - single source of truth for `list_resources` and instructions
 const RESOURCE_DEFS: &[ResourceDef] = &[
     ResourceDef {
         uri: "turbo://config",
@@ -443,11 +443,10 @@ impl TurboServer {
             .await
             .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
-        let pkg_info = if let Some(ref name) = p.package {
-            packages.iter().find(|pkg| &pkg.name == name)
-        } else {
-            packages.first()
-        };
+        let pkg_info = p.package.as_ref().map_or_else(
+            || packages.first(),
+            |name| packages.iter().find(|pkg| &pkg.name == name),
+        );
 
         // Get turbo config
         let turbo_config = self.load_config().await.ok();
@@ -577,7 +576,7 @@ impl rmcp::ServerHandler for TurboServer {
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string());
 
                 let response = serde_json::json!({
-                    "cacheDir": config.as_ref().map(|c| c.cache_dir()),
+                    "cacheDir": config.as_ref().map(turbo_core::TurboConfig::cache_dir),
                     "remoteCache": config.as_ref().and_then(|c| c.remote_cache.as_ref()),
                     "daemonStatus": daemon_status
                 });

@@ -1,8 +1,8 @@
 //! turbo.json configuration parsing and types
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
@@ -32,12 +32,12 @@ pub struct TurboConfig {
     pub global_pass_through_env: Vec<String>,
 
     /// Task definitions (modern format)
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub tasks: HashMap<String, TurboTask>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub tasks: IndexMap<String, TurboTask>,
 
     /// Pipeline definitions (legacy format, maps to tasks)
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub pipeline: HashMap<String, TurboTask>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub pipeline: IndexMap<String, TurboTask>,
 
     /// UI mode
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -124,12 +124,18 @@ pub struct RemoteCacheConfig {
 
 impl TurboConfig {
     /// Find and load turbo.json starting from the given directory
+    ///
+    /// # Errors
+    /// Returns error if config not found or cannot be parsed
     pub async fn find_and_load(start_dir: &Path) -> Result<Self> {
         let path = Self::find_config_path(start_dir)?;
         Self::load(&path).await
     }
 
     /// Find turbo.json by walking up the directory tree
+    ///
+    /// # Errors
+    /// Returns `Error::ConfigNotFound` if no turbo.json found
     pub fn find_config_path(start_dir: &Path) -> Result<PathBuf> {
         let mut current = start_dir.to_path_buf();
         loop {
@@ -147,6 +153,9 @@ impl TurboConfig {
     }
 
     /// Load and parse turbo.json from a specific path
+    ///
+    /// # Errors
+    /// Returns error if file cannot be read or parsed
     pub async fn load(path: &Path) -> Result<Self> {
         let content = tokio::fs::read_to_string(path)
             .await
@@ -159,6 +168,9 @@ impl TurboConfig {
     }
 
     /// Load synchronously
+    ///
+    /// # Errors
+    /// Returns error if file cannot be read or parsed
     pub fn load_sync(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path).map_err(|e| Error::ReadFile {
             path: path.to_path_buf(),
@@ -169,6 +181,9 @@ impl TurboConfig {
     }
 
     /// Parse turbo.json content (handles JSONC comments)
+    ///
+    /// # Errors
+    /// Returns `Error::ParseJson` if content is invalid JSON
     pub fn parse(content: &str, path: Option<PathBuf>) -> Result<Self> {
         let stripped = strip_json_comments(content);
 
@@ -191,11 +206,13 @@ impl TurboConfig {
     }
 
     /// Get a task by name (checks both `tasks` and `pipeline`)
+    #[must_use]
     pub fn get_task(&self, name: &str) -> Option<&TurboTask> {
         self.tasks.get(name).or_else(|| self.pipeline.get(name))
     }
 
     /// Get cache directory (with default fallback)
+    #[must_use]
     pub fn cache_dir(&self) -> &str {
         self.cache_dir
             .as_deref()
@@ -204,6 +221,7 @@ impl TurboConfig {
 }
 
 /// Strip JSON comments (// and /* */) from content
+#[must_use]
 pub fn strip_json_comments(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     let mut chars = input.chars().peekable();
