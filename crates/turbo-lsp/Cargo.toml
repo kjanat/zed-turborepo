@@ -15,8 +15,10 @@ name = "turbo-lsp"
 path = "src/main.rs"
 
 [dependencies]
+serde_json.workspace    = true
 tokio.workspace         = true
 tower-lsp.workspace     = true
+turbo-core              = { path = "../turbo-core" }
 turborepo-lsp.workspace = true
 
 [lints]

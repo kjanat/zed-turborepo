@@ -27,7 +27,7 @@ pre-commit:
 
     cargo-check:
       glob: "*.rs"
-      run: cargo check --all-features --all-targets
+      run: cargo +nightly check --all-features --all-targets
 
     actionlint:
       glob: ".github/workflows/*.{yaml,yml}"
@@ -38,8 +38,8 @@ pre-push:
   commands:
     cargo-test:
       glob: "*.rs"
-      run: cargo test
+      run: cargo +nightly test
 
     cargo-clippy:
       glob: "*.rs"
-      run: cargo clippy --all-features --all-targets -- -D warnings
+      run: cargo +nightly clippy --all-features --all-targets -- -D warnings

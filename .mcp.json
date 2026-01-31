@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "turbo-mcp": {
+      "command": "cargo",
+      "args": ["run", "--bin", "turbo-mcp"],
+      "env": {}
+    }
+  }
+}

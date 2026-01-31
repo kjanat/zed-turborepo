@@ -15,5 +15,13 @@
         "cargo": { "allFeatures": true }
       }
     }
+  },
+  "context_servers": {
+    "turbo-mcp": {
+      "command": "cargo",
+      "args": ["run", "--bin", "turbo-mcp"],
+      "enabled": true,
+      "env": {}
+    }
   }
 }

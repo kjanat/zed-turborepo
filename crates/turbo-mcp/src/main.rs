@@ -31,24 +31,47 @@ use rmcp::{
 };
 use serde::Deserialize;
 use tokio::sync::Mutex;
+use turbo_core::{PackageDiscovery, TurboConfig};
 
 /// Turbo icon SVG embedded at compile time
 const ICON_SVG: &str = include_str!("../../../resources/icon.svg");
 
-/// Resource URIs
-const URI_CONFIG: &str = "turbo://config";
-const URI_TASKS: &str = "turbo://tasks";
-const URI_PACKAGES: &str = "turbo://packages";
-const URI_CACHE: &str = "turbo://cache";
+/// Resource metadata definition
+struct ResourceDef {
+    uri: &'static str,
+    name: &'static str,
+    description: &'static str,
+}
 
-// ============================================================================
-// Server State
-// ============================================================================
+/// All available resources - single source of truth for list_resources and instructions
+const RESOURCE_DEFS: &[ResourceDef] = &[
+    ResourceDef {
+        uri: "turbo://config",
+        name: "Turbo Config",
+        description: "Full turbo.json",
+    },
+    ResourceDef {
+        uri: "turbo://tasks",
+        name: "Task List",
+        description: "Defined tasks",
+    },
+    ResourceDef {
+        uri: "turbo://packages",
+        name: "Packages",
+        description: "Workspace packages",
+    },
+    ResourceDef {
+        uri: "turbo://cache",
+        name: "Cache Status",
+        description: "Cache configuration and status",
+    },
+];
 
 #[derive(Clone)]
 pub struct TurboServer {
     cwd: Arc<Mutex<PathBuf>>,
     tool_router: ToolRouter<Self>,
+    instructions: String,
 }
 
 impl Default for TurboServer {
@@ -56,10 +79,6 @@ impl Default for TurboServer {
         Self::new()
     }
 }
-
-// ============================================================================
-// Tool Parameters
-// ============================================================================
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -150,50 +169,44 @@ pub struct InfoParams {
     pub package: Option<String>,
 }
 
-// ============================================================================
-// Server Implementation
-// ============================================================================
-
 #[tool_router]
 impl TurboServer {
     #[must_use]
     pub fn new() -> Self {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let tool_router = Self::tool_router();
+
+        // Build instructions dynamically from registered tools and resources
+        let resource_uris: Vec<_> = RESOURCE_DEFS.iter().map(|r| r.uri).collect();
+        let tools = tool_router.list_all();
+        let tool_names: Vec<_> = tools.iter().map(|t| t.name.as_ref()).collect();
+
+        let instructions = format!(
+            "{}. Resources: {}. Tools: {}.",
+            env!("CARGO_PKG_DESCRIPTION"),
+            resource_uris.join(", "),
+            tool_names.join(", ")
+        );
+
         Self {
             cwd: Arc::new(Mutex::new(cwd)),
-            tool_router: Self::tool_router(),
+            tool_router,
+            instructions,
         }
     }
 
-    async fn find_turbo_json(&self) -> Option<PathBuf> {
-        let mut current = self.cwd.lock().await.clone();
-        loop {
-            for name in ["turbo.json", "turbo.jsonc"] {
-                let path = current.join(name);
-                if path.exists() {
-                    return Some(path);
-                }
-            }
-            if !current.pop() {
-                break;
-            }
-        }
-        None
+    /// Load turbo config using turbo-core
+    async fn load_config(&self) -> Result<TurboConfig, McpError> {
+        let cwd = self.cwd.lock().await.clone();
+        TurboConfig::find_and_load(&cwd)
+            .await
+            .map_err(|e| McpError::resource_not_found(e.to_string(), None))
     }
 
-    async fn read_turbo_json(&self) -> Result<serde_json::Value, McpError> {
-        let path = self
-            .find_turbo_json()
-            .await
-            .ok_or_else(|| McpError::resource_not_found("No turbo.json found", None))?;
-
-        let content = tokio::fs::read_to_string(&path)
-            .await
-            .map_err(|e| McpError::internal_error(format!("Read error: {e}"), None))?;
-
-        let content = strip_json_comments(&content);
-        serde_json::from_str(&content)
-            .map_err(|e| McpError::internal_error(format!("Parse error: {e}"), None))
+    /// Get package discovery instance
+    async fn discovery(&self) -> PackageDiscovery {
+        let cwd = self.cwd.lock().await.clone();
+        PackageDiscovery::new(cwd)
     }
 
     async fn run_turbo(&self, args: &[&str]) -> Result<std::process::Output, McpError> {
@@ -207,10 +220,6 @@ impl TurboServer {
             .await
             .map_err(|e| McpError::internal_error(format!("turbo error: {e}"), None))
     }
-
-    // ========================================================================
-    // Tools
-    // ========================================================================
 
     #[tool(description = "Manage working directory (get/set)")]
     async fn workdir(
@@ -426,35 +435,25 @@ impl TurboServer {
         &self,
         Parameters(p): Parameters<InfoParams>,
     ) -> Result<CallToolResult, McpError> {
-        let cwd = self.cwd.lock().await.clone();
+        let discovery = self.discovery().await;
 
-        // Read package.json for the target
-        let pkg_path = p.package.as_ref().map_or_else(
-            || cwd.join("package.json"),
-            |pkg| {
-                // Try to find package in node_modules or packages directory
-                let node_path = cwd.join("node_modules").join(pkg).join("package.json");
-                if node_path.exists() {
-                    node_path
-                } else {
-                    // Fallback to root
-                    cwd.join("package.json")
-                }
-            },
-        );
-
-        let content = tokio::fs::read_to_string(&pkg_path)
+        // Get packages using turbo-core discovery
+        let packages = discovery
+            .discover_packages()
             .await
-            .map_err(|e| McpError::internal_error(format!("Read error: {e}"), None))?;
+            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
-        let pkg: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| McpError::internal_error(format!("Parse error: {e}"), None))?;
+        let pkg_info = if let Some(ref name) = p.package {
+            packages.iter().find(|pkg| &pkg.name == name)
+        } else {
+            packages.first()
+        };
 
-        // Also get turbo.json if available
-        let turbo_config = self.read_turbo_json().await.ok();
+        // Get turbo config
+        let turbo_config = self.load_config().await.ok();
 
         let response = serde_json::json!({
-            "package": pkg,
+            "package": pkg_info,
             "turbo_config": turbo_config
         });
 
@@ -463,10 +462,6 @@ impl TurboServer {
         )]))
     }
 }
-
-// ============================================================================
-// ServerHandler
-// ============================================================================
 
 #[tool_handler]
 impl rmcp::ServerHandler for TurboServer {
@@ -478,21 +473,17 @@ impl rmcp::ServerHandler for TurboServer {
                 .enable_resources()
                 .build(),
             server_info: Implementation {
-                name: "turbo-mcp".into(),
+                name: env!("CARGO_PKG_NAME").into(),
                 version: env!("CARGO_PKG_VERSION").into(),
-                title: Some("Turbo MCP Server".into()),
+                title: Some(env!("CARGO_PKG_DESCRIPTION").into()),
                 icons: Some(vec![Icon {
                     src: format!("data:image/svg+xml;base64,{}", BASE64.encode(ICON_SVG)),
                     mime_type: Some("image/svg+xml".into()),
                     sizes: Some(vec!["any".into()]),
                 }]),
-                website_url: Some("https://github.com/kjanat/zed-turborepo".into()),
+                website_url: Some(env!("CARGO_PKG_REPOSITORY").into()),
             },
-            instructions: Some(
-                "Turbo MCP server. Resources: turbo://config, turbo://tasks, turbo://packages, turbo://cache. \
-                 Tools: workdir, daemon, run, graph, prune, query, lint, info."
-                    .into(),
-            ),
+            instructions: Some(self.instructions.clone()),
         }
     }
 
@@ -501,61 +492,27 @@ impl rmcp::ServerHandler for TurboServer {
         _request: Option<PaginatedRequestParams>,
         _ctx: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
+        let resources = RESOURCE_DEFS
+            .iter()
+            .map(|def| {
+                Annotated::new(
+                    RawResource {
+                        uri: def.uri.into(),
+                        name: def.name.into(),
+                        description: Some(def.description.into()),
+                        mime_type: Some("application/json".into()),
+                        size: None,
+                        title: None,
+                        icons: None,
+                        meta: None,
+                    },
+                    None,
+                )
+            })
+            .collect();
+
         Ok(ListResourcesResult {
-            resources: vec![
-                Annotated::new(
-                    RawResource {
-                        uri: URI_CONFIG.into(),
-                        name: "Turbo Config".into(),
-                        description: Some("Full turbo.json".into()),
-                        mime_type: Some("application/json".into()),
-                        size: None,
-                        title: None,
-                        icons: None,
-                        meta: None,
-                    },
-                    None,
-                ),
-                Annotated::new(
-                    RawResource {
-                        uri: URI_TASKS.into(),
-                        name: "Task List".into(),
-                        description: Some("Defined tasks".into()),
-                        mime_type: Some("application/json".into()),
-                        size: None,
-                        title: None,
-                        icons: None,
-                        meta: None,
-                    },
-                    None,
-                ),
-                Annotated::new(
-                    RawResource {
-                        uri: URI_PACKAGES.into(),
-                        name: "Packages".into(),
-                        description: Some("Workspace packages".into()),
-                        mime_type: Some("application/json".into()),
-                        size: None,
-                        title: None,
-                        icons: None,
-                        meta: None,
-                    },
-                    None,
-                ),
-                Annotated::new(
-                    RawResource {
-                        uri: URI_CACHE.into(),
-                        name: "Cache Status".into(),
-                        description: Some("Cache configuration and status".into()),
-                        mime_type: Some("application/json".into()),
-                        size: None,
-                        title: None,
-                        icons: None,
-                        meta: None,
-                    },
-                    None,
-                ),
-            ],
+            resources,
             next_cursor: None,
             meta: None,
         })
@@ -567,8 +524,8 @@ impl rmcp::ServerHandler for TurboServer {
         _ctx: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, McpError> {
         match request.uri.as_str() {
-            URI_CONFIG => {
-                let config = self.read_turbo_json().await?;
+            "turbo://config" => {
+                let config = self.load_config().await?;
                 Ok(ReadResourceResult {
                     contents: vec![ResourceContents::text(
                         serde_json::to_string_pretty(&config).unwrap(),
@@ -576,14 +533,9 @@ impl rmcp::ServerHandler for TurboServer {
                     )],
                 })
             }
-            URI_TASKS => {
-                let config = self.read_turbo_json().await?;
-                let tasks: Vec<&str> = config
-                    .get("tasks")
-                    .or_else(|| config.get("pipeline"))
-                    .and_then(serde_json::Value::as_object)
-                    .map(|t| t.keys().map(String::as_str).collect())
-                    .unwrap_or_default();
+            "turbo://tasks" => {
+                let config = self.load_config().await?;
+                let tasks = config.task_names();
 
                 Ok(ReadResourceResult {
                     contents: vec![ResourceContents::text(
@@ -592,48 +544,23 @@ impl rmcp::ServerHandler for TurboServer {
                     )],
                 })
             }
-            URI_PACKAGES => {
-                let cwd = self.cwd.lock().await.clone();
-                let output = tokio::process::Command::new("turbo")
-                    .args(["ls", "--output", "json"])
-                    .current_dir(&cwd)
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .output()
-                    .await;
-
-                let content = match output {
-                    Ok(out) if out.status.success() => {
-                        String::from_utf8_lossy(&out.stdout).to_string()
-                    }
-                    _ => {
-                        // Fallback: package.json workspaces
-                        let pkg_path = cwd.join("package.json");
-                        tokio::fs::read_to_string(&pkg_path)
-                            .await
-                            .ok()
-                            .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
-                            .and_then(|v| v.get("workspaces").cloned())
-                            .map_or_else(
-                                || "[]".into(),
-                                |w| serde_json::to_string_pretty(&w).unwrap(),
-                            )
-                    }
-                };
+            "turbo://packages" => {
+                let discovery = self.discovery().await;
+                let packages = discovery
+                    .discover_packages()
+                    .await
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
                 Ok(ReadResourceResult {
-                    contents: vec![ResourceContents::text(content, request.uri)],
+                    contents: vec![ResourceContents::text(
+                        serde_json::to_string_pretty(&packages).unwrap(),
+                        request.uri,
+                    )],
                 })
             }
-            URI_CACHE => {
+            "turbo://cache" => {
+                let config = self.load_config().await.ok();
                 let cwd = self.cwd.lock().await.clone();
-
-                // Get remote cache config from turbo.json
-                let remote_cache = self
-                    .read_turbo_json()
-                    .await
-                    .ok()
-                    .and_then(|c| c.get("remoteCache").cloned());
 
                 // Check daemon status for cache info
                 let daemon_output = tokio::process::Command::new("turbo")
@@ -649,17 +576,9 @@ impl rmcp::ServerHandler for TurboServer {
                     .as_ref()
                     .map(|o| String::from_utf8_lossy(&o.stdout).to_string());
 
-                // Get cache directory
-                let cache_dir = self
-                    .read_turbo_json()
-                    .await
-                    .ok()
-                    .and_then(|c| c.get("cacheDir").and_then(|v| v.as_str()).map(String::from))
-                    .unwrap_or_else(|| "node_modules/.cache/turbo".into());
-
                 let response = serde_json::json!({
-                    "cacheDir": cache_dir,
-                    "remoteCache": remote_cache,
+                    "cacheDir": config.as_ref().map(|c| c.cache_dir()),
+                    "remoteCache": config.as_ref().and_then(|c| c.remote_cache.as_ref()),
                     "daemonStatus": daemon_status
                 });
 
@@ -678,68 +597,6 @@ impl rmcp::ServerHandler for TurboServer {
     }
 }
 
-// ============================================================================
-// Utilities
-// ============================================================================
-
-fn strip_json_comments(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    let mut chars = input.chars().peekable();
-    let mut in_string = false;
-    let mut escape_next = false;
-
-    while let Some(c) = chars.next() {
-        if escape_next {
-            result.push(c);
-            escape_next = false;
-            continue;
-        }
-        if c == '\\' && in_string {
-            result.push(c);
-            escape_next = true;
-            continue;
-        }
-        if c == '"' {
-            in_string = !in_string;
-            result.push(c);
-            continue;
-        }
-        if in_string {
-            result.push(c);
-            continue;
-        }
-        if c == '/' {
-            match chars.peek() {
-                Some('/') => {
-                    chars.next();
-                    for next in chars.by_ref() {
-                        if next == '\n' {
-                            break;
-                        }
-                    }
-                }
-                Some('*') => {
-                    chars.next();
-                    while let Some(next) = chars.next() {
-                        if next == '*' && chars.peek() == Some(&'/') {
-                            chars.next();
-                            break;
-                        }
-                    }
-                }
-                _ => result.push(c),
-            }
-        } else {
-            result.push(c);
-        }
-    }
-    result
-}
-
-// ============================================================================
-// Main
-// ============================================================================
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -750,7 +607,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_writer(std::io::stderr)
         .init();
 
-    tracing::info!("Starting turbo-mcp v{}", env!("CARGO_PKG_VERSION"));
+    tracing::info!(
+        "Starting {} v{}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
 
     let service = TurboServer::new().serve(stdio()).await.inspect_err(|e| {
         tracing::error!("Server error: {e}");
@@ -762,7 +623,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use turbo_core::config::strip_json_comments;
 
     #[test]
     fn test_strip_json_comments() {

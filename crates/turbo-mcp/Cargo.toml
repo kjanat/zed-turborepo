@@ -15,15 +15,16 @@ name = "turbo-mcp"
 path = "src/main.rs"
 
 [dependencies]
-base64                       = "0.22"
+base64.workspace             = true
 rmcp.workspace               = true
 schemars.workspace           = true
 serde.workspace              = true
 serde_json.workspace         = true
 thiserror.workspace          = true
-tokio                        = { version = "1", features = ["full", "process"] }
+tokio.workspace              = true
 tracing.workspace            = true
 tracing-subscriber.workspace = true
+turbo-core                   = { path = "../turbo-core" }
 
 [lints]
 workspace = true
