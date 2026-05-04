@@ -11,9 +11,9 @@
     "check": "turbo run check",
     "clean": "turbo run clean",
     "fmt": "turbo run fmt",
+    "install": "bun run install:lsp && bun run install:mcp",
     "install:lsp": "cargo install --path crates/turbo-lsp",
     "install:mcp": "cargo install --path crates/turbo-mcp",
-    "install:all": "bun run install:lsp && bun run install:mcp",
     "lint": "turbo run lint",
     "test": "turbo run test"
   },
