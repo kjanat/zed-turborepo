@@ -1,6 +1,5 @@
+#:schema tombi://www.schemastore.org/tombi.json
 #:tombi toml-version = "v1.1.0"
-
-toml-version = "v1.1.0"
 
 [files]
 include = ["**/*.toml", "**/.*.toml"]
@@ -44,4 +43,42 @@ hover.enabled                = true
 workspace-diagnostic.enabled = true
 
 [schema]
-enabled = true
+enabled       = true
+strict        = true
+catalog.paths = [
+  "tombi://www.schemastore.org/api/json/catalog.json",
+  "https://www.schemastore.org/api/json/catalog.json"
+]
+
+[[schemas]]
+path    = "/home/kjanat/projects/zed-editor/crates/extension_api/schemas/language-config.schema.json"
+include = ["**/languages/*/config.toml"]
+
+[[schemas]]
+path    = "/home/kjanat/projects/zed-editor/crates/extension_api/schemas/extension.schema.json"
+include = ["extension.toml"]
+
+# [[overrides]]
+# [overrides.files]
+# include = ["**/vendor/*.toml", "**/vendor/.*.toml"]
+
+# [overrides.format]
+# enabled = false
+
+# [overrides.lint]
+# enabled = false
+
+# [[overrides]]
+# [overrides.files]
+# include = ["**/vendor/**/extension.toml", "**/vendor/**/languages/*/config.toml"]
+
+# [overrides.format]
+# enabled = false
+
+# [overrides.lint]
+# enabled = true
+# rules   = {
+#   dotted-keys-out-of-order = "off",
+#   key-empty                = "off",
+#   tables-out-of-order      = "off",
+# }

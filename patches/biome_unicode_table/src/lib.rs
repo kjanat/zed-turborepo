@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 use crate::{
     bytes::DISPATCHER,
     tables::derived_property::{ID_Continue, ID_Start},

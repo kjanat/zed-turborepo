@@ -8,6 +8,7 @@ future_incompatible,
 )]
 #![deny(unsafe_code)]
 #![deny(rustdoc::broken_intra_doc_links)]
+#![allow(clippy::all)]
 
 #[doc(hidden)]
 pub mod macros;

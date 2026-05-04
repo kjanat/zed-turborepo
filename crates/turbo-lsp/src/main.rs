@@ -3,14 +3,17 @@
 //! Language Server Protocol implementation for Turborepo.
 
 use tokio::io;
-use tower_lsp::lsp_types::{
-    CodeActionParams, CodeActionResponse, CodeLens, CodeLensParams, CompletionParams,
-    CompletionResponse, DidChangeConfigurationParams, DidChangeTextDocumentParams,
-    DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, ExecuteCommandParams, InitializeParams,
-    InitializeResult, InitializedParams, Location, ReferenceParams, ServerInfo,
+use tower_lsp::{
+    LspService, Server,
+    lsp_types::{
+        CodeActionParams, CodeActionResponse, CodeLens, CodeLensParams, CompletionParams,
+        CompletionResponse, DidChangeConfigurationParams, DidChangeTextDocumentParams,
+        DidChangeWatchedFilesParams, DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams,
+        DidOpenTextDocumentParams, DidSaveTextDocumentParams, ExecuteCommandParams,
+        InitializeParams, InitializeResult, InitializedParams, Location, ReferenceParams,
+        ServerInfo,
+    },
 };
-use tower_lsp::{LspService, Server};
 use turborepo_lsp::Backend;
 
 /// Wrapper that adds server info to the upstream Backend

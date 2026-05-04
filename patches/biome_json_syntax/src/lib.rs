@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 #[macro_use]
 mod generated;
 mod file_source;

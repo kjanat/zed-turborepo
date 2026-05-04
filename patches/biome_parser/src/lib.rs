@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 //! # Authoring Parse Rules
 //!
 //! This is a short, or not so short, guide to implement parse rules using the Biome parser infrastructure.

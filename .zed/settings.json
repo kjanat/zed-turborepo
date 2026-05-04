@@ -13,15 +13,14 @@
   // },
   "languages": {
     "TOML": { "wrap_guides": [120], "language_servers": ["tombi", "..."] }
-    // "JSONC": { "language_servers": ["turborepo-lsp", "json-language-server", "..."] }
   },
   "lsp": {
-    "rust-analyzer": {
-      "initialization_options": {
-        "cargo": { "allFeatures": true, "allTargets": true }
-      }
-    }
-    // "turborepo-lsp": {
+    // "rust-analyzer": {
+    //   "initialization_options": {
+    //     "cargo": { "allFeatures": true, "allTargets": true }
+    //   }
+    // },
+    // "turbo-lsp": {
     //   "binary": { "path": "/home/kjanat/projects/zed-turborepo/scripts/turbo-lsp-wrapper.sh" },
     //   "enable_lsp_tasks": true
     // }

@@ -65,7 +65,7 @@ Search for "Turbo" in the Zed extensions panel and install.
 
 ```bash
 # Build from source
-cargo install --path crates/turbo-mcp
+cargo install --git https://github.com/kjanat/zed-turborepo turbo-mcp
 
 # Or download from releases
 ```
@@ -84,27 +84,25 @@ Configure in your AI client (e.g., Claude Desktop):
 
 ## LSP Binary
 
-The `turborepo-lsp` binary is **automatically downloaded** from the VS Code
-Marketplace on first use. No manual installation required!
+This project is local-only. The Zed extension does **not** auto-download LSP
+binaries.
 
-### Alternative Installation Methods
+### Installation Methods
 
-If auto-download fails or you prefer manual installation:
-
-#### Option 1: Download Script
+#### Option 1: Build local wrapper (recommended)
 
 ```bash
-# From the extension directory
-./scripts/download-lsp.sh
-
-# Or using just
-just download-lsp
+cargo build -p turbo-lsp
+# Binary at target/debug/turbo-lsp
 ```
 
-This downloads the binary from the VS Code marketplace and installs it to
-`~/.local/share/bin/turborepo-lsp`.
+#### Option 2: Install local wrapper to PATH
 
-#### Option 2: Build from Source
+```bash
+cargo install --git https://github.com/kjanat/zed-turborepo turbo-lsp
+```
+
+#### Option 3: Build upstream binary
 
 ```bash
 git clone https://github.com/vercel/turborepo
@@ -113,28 +111,23 @@ cargo build --release
 # Binary at target/release/turborepo-lsp
 ```
 
-#### Option 3: Extract from VS Code Extension
+#### Option 4: Use an existing local upstream binary
 
-If you have VS Code with the Turborepo extension installed:
+If `turborepo-lsp` is already on PATH, the extension will use it.
 
-```bash
-cp ~/.vscode/extensions/vercel.turbo-vsc-*/out/turborepo-lsp-linux-x64 ~/.local/bin/turborepo-lsp
-chmod +x ~/.local/bin/turborepo-lsp
-```
-
-Platform binaries: `turborepo-lsp-{linux,darwin}-{x64,arm64}`
+Recognized upstream names: `turborepo-lsp`,
+`turborepo-lsp-{linux,darwin}-{x64,arm64}`.
 
 ## Configuration
 
-Configure the LSP binary path in your Zed settings (optional - only needed if
-auto-download doesn't work):
+Configure the LSP binary path in your Zed settings if it is not on PATH:
 
 ```jsonc
 {
   "lsp": {
-    "turborepo-lsp": {
+    "turbo-lsp": {
       "binary": {
-        "path": "/path/to/turborepo-lsp",
+        "path": "/path/to/turbo-lsp",
       },
     },
   },

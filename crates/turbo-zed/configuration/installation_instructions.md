@@ -20,14 +20,17 @@ cargo install turbo-mcp
 ### Option 2: Build from Source
 
 ```bash
-git clone https://github.com/kjanat/zed-turborepo
-cd zed-turborepo
-cargo install --path crates/turbo-mcp
+cargo install --git https://github.com/kjanat/zed-turborepo turbo-mcp
 ```
 
 ### Option 3: Custom Binary Path
 
 Configure `binary_path` in the settings below.
+
+## Local-only Note
+
+This extension does not download binaries from remote marketplaces. Use a local
+`turbo-mcp` binary on PATH or point `binary_path` at one.
 
 ## Requirements
 

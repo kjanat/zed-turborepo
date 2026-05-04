@@ -1,13 +1,17 @@
 //! Package and task discovery for Turborepo workspaces
 
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+};
 
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 
-use crate::config::TurboConfig;
-use crate::error::{Error, Result};
+use crate::{
+    config::TurboConfig,
+    error::{Error, Result},
+};
 
 /// Discovered package information
 #[derive(Debug, Clone, Serialize, Deserialize)]

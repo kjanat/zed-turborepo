@@ -1,3 +1,5 @@
+#![allow(clippy::upper_case_acronyms)]
+
 use Dispatch::*;
 
 /// Every handler a byte coming in could be mapped to

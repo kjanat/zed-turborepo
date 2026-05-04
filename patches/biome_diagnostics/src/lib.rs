@@ -1,4 +1,5 @@
 #![deny(rust_2018_idioms)]
+#![allow(clippy::all)]
 
 use ::serde::{Deserialize, Serialize};
 
