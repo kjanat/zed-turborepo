@@ -9,16 +9,30 @@
       }
     },
     "turbo-lsp": {
-      "binary": { "path": "cargo", "arguments": ["run", "--bin", "turbo-lsp", "--path", "crates/turbo-lsp"] },
+      "binary": {
+        "path": "cargo",
+        "arguments": [
+          "run",
+          "--bin",
+          "turbo-lsp",
+          "--manifest-path",
+          "/home/kjanat/projects/zed-turborepo/crates/turbo-lsp/Cargo.toml"
+        ]
+      },
       "enable_lsp_tasks": true
     }
   },
   "context_servers": {
     "turbo-mcp": {
       "command": "cargo",
-      "args": ["run", "--bin", "turbo-mcp", "--path", "crates/turbo-mcp"],
-      "enabled": true,
-      "env": {}
+      "args": [
+        "run",
+        "--bin",
+        "turbo-mcp",
+        "--manifest-path",
+        "/home/kjanat/projects/zed-turborepo/crates/turbo-mcp/Cargo.toml"
+      ],
+      "enabled": true
     }
   }
 }
