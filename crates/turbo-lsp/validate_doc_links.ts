@@ -19,7 +19,7 @@ type HoverSpec = {
 const docLinksFile = new URL("./doc_links.ts", import.meta.url);
 const schemaUrl = "https://turborepo.dev/schema.json";
 
-if (import.meta.main) {
+if (import.meta.url === Deno.mainModule) {
   const source = await Deno.readTextFile(docLinksFile);
   const parsed = parseSource(source);
   await validateDocLinks(parsed.docLinks);
