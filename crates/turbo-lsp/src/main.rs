@@ -24,19 +24,49 @@ use tower_lsp::{
         CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
         DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
         DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-        DidSaveTextDocumentParams, ExecuteCommandOptions, ExecuteCommandParams, Hover,
-        HoverContents, HoverParams, InitializeParams, InitializeResult, InitializedParams,
-        Location, MarkupContent, MarkupKind, NumberOrString, OneOf,
-        OptionalVersionedTextDocumentIdentifier, Position, Range, ReferenceParams,
-        ReferencesOptions, ServerCapabilities, ServerInfo, TextDocumentContentChangeEvent,
-        TextDocumentEdit, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Url,
-        WorkDoneProgressOptions, WorkspaceEdit, WorkspaceFoldersServerCapabilities,
-        WorkspaceServerCapabilities,
+        DidSaveTextDocumentParams, ExecuteCommandOptions, ExecuteCommandParams,
+        GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
+        InitializeParams, InitializeResult, InitializedParams, Location, MarkupContent, MarkupKind,
+        NumberOrString, OneOf, OptionalVersionedTextDocumentIdentifier, Position, Range,
+        ReferenceParams, ReferencesOptions, ServerCapabilities, ServerInfo,
+        TextDocumentContentChangeEvent, TextDocumentEdit, TextDocumentSyncCapability,
+        TextDocumentSyncKind, TextEdit, Url, WorkDoneProgressOptions, WorkspaceEdit,
+        WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
     },
 };
 use turbo_core::{Package, PackageDiscovery, TurboConfig};
 
 include!(concat!(env!("OUT_DIR"), "/doc_links_generated.rs"));
+
+const ROOT_PACKAGE_NAME: &str = "//";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TaskReference<'a> {
+    package: Option<&'a str>,
+    task: &'a str,
+}
+
+impl<'a> TaskReference<'a> {
+    fn parse(value: &'a str) -> Self {
+        if let Some(task) = value.strip_prefix("//#") {
+            return Self {
+                package: Some(ROOT_PACKAGE_NAME),
+                task,
+            };
+        }
+
+        value.split_once('#').map_or(
+            Self {
+                package: None,
+                task: value,
+            },
+            |(package, task)| Self {
+                package: Some(package),
+                task,
+            },
+        )
+    }
+}
 
 struct TurboBackend {
     client: Client,
@@ -134,7 +164,7 @@ impl TurboBackend {
 
         for package in &packages {
             let package_name = if package.path == root {
-                "//".to_string()
+                ROOT_PACKAGE_NAME.to_string()
             } else {
                 package.name.clone()
             };
@@ -300,34 +330,29 @@ impl TurboBackend {
         let text = self.read_open_file(&params.text_document_position.text_document.uri)?;
         let offset = utf16_position_to_byte_offset(&text, params.text_document_position.position)?;
         let target = hover_target_for_offset(&text, offset)?;
-        let label = match target {
-            HoverTarget::TaskName(name) => name,
-            HoverTarget::DependsOnEntry { entry, .. } => entry.trim_start_matches('^').to_string(),
-            HoverTarget::TaskField { .. } | HoverTarget::TopLevelKey(_) => return None,
-        };
+        let label = task_target_label(&target)?;
+        self.script_locations_for_label(&label).await
+    }
 
+    async fn script_locations_for_label(&self, label: &str) -> Option<Vec<Location>> {
         let workspace = self.workspace_state().await?;
-        let (package_filter, task_name) = label
-            .split_once('#')
-            .map_or((None, label.as_str()), |(package, task)| {
-                (Some(package), task)
-            });
+        let task_ref = TaskReference::parse(label);
 
         let mut locations = Vec::new();
         for package in workspace.packages {
             let package_name = if package.path == self.repo_root()? {
-                "//"
+                ROOT_PACKAGE_NAME
             } else {
                 package.name.as_str()
             };
 
-            if let Some(filter) = package_filter
+            if let Some(filter) = task_ref.package
                 && filter != package_name
             {
                 continue;
             }
 
-            if !package.scripts.contains_key(task_name) {
+            if !package.scripts.contains_key(task_ref.task) {
                 continue;
             }
 
@@ -335,13 +360,37 @@ impl TurboBackend {
                 continue;
             };
 
-            if let Some(location) = script_location(&content, &package.package_json_path, task_name)
+            if let Some(location) =
+                script_location(&content, &package.package_json_path, task_ref.task)
             {
                 locations.push(location);
             }
         }
 
         Some(locations)
+    }
+
+    async fn goto_definition(
+        &self,
+        params: &GotoDefinitionParams,
+    ) -> Option<GotoDefinitionResponse> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let text = self.read_open_file(uri)?;
+        let offset =
+            utf16_position_to_byte_offset(&text, params.text_document_position_params.position)?;
+        let target = hover_target_for_offset(&text, offset)?;
+        let label = task_target_label(&target)?;
+
+        if let Some(location) = task_definition_location(&text, uri, &label) {
+            return Some(GotoDefinitionResponse::Scalar(location));
+        }
+
+        let script_locations = self.script_locations_for_label(&label).await?;
+        match script_locations.as_slice() {
+            [] => None,
+            [location] => Some(GotoDefinitionResponse::Scalar(location.clone())),
+            _ => Some(GotoDefinitionResponse::Array(script_locations)),
+        }
     }
 
     fn code_lens(&self, uri: &Url) -> Option<Vec<CodeLens>> {
@@ -474,6 +523,7 @@ impl tower_lsp::LanguageServer for TurboBackend {
                     ..CompletionOptions::default()
                 }),
                 hover_provider: Some(tower_lsp::lsp_types::HoverProviderCapability::Simple(true)),
+                definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Right(ReferencesOptions {
                     work_done_progress_options: WorkDoneProgressOptions::default(),
                 })),
@@ -548,6 +598,13 @@ impl tower_lsp::LanguageServer for TurboBackend {
         params: ReferenceParams,
     ) -> tower_lsp::jsonrpc::Result<Option<Vec<Location>>> {
         Ok(self.references(&params).await)
+    }
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> tower_lsp::jsonrpc::Result<Option<GotoDefinitionResponse>> {
+        Ok(self.goto_definition(&params).await)
     }
 
     async fn hover(&self, params: HoverParams) -> tower_lsp::jsonrpc::Result<Option<Hover>> {
@@ -739,20 +796,50 @@ fn strip_lit_prefix<'a>(string: &'a StringLit<'a>, prefix: &str) -> Option<Strin
     })
 }
 
+fn task_target_label(target: &HoverTarget) -> Option<String> {
+    match target {
+        HoverTarget::TaskName(name) => Some(name.clone()),
+        HoverTarget::DependsOnEntry { entry, .. } => Some(
+            entry
+                .trim_start_matches('^')
+                .trim_start_matches('$')
+                .to_string(),
+        ),
+        HoverTarget::TaskField { .. } | HoverTarget::TopLevelKey(_) => None,
+    }
+}
+
+fn task_definition_location(text: &str, uri: &Url, label: &str) -> Option<Location> {
+    let parse = parse_to_ast(text, &CollectOptions::default(), &ParseOptions::default()).ok()?;
+    let root = parse.value.as_ref()?.as_object()?;
+
+    for task_group_name in ["tasks", "pipeline"] {
+        let Some(task_group) = root.get_object(task_group_name) else {
+            continue;
+        };
+
+        for property in &task_group.properties {
+            if property.name.as_str() == label {
+                let range = byte_range_to_lsp_range(text, key_range(property.range, label.len()));
+                return Some(Location::new(uri.clone(), range));
+            }
+        }
+    }
+
+    None
+}
+
 fn report_invalid_packages_and_tasks(
     workspace: &WorkspaceState,
     text: &str,
     diagnostics: &mut Vec<Diagnostic>,
     package_task: &StringLit<'_>,
 ) {
-    let (package, task) = package_task.value.split_once('#').map_or_else(
-        || (None, package_task.value.as_ref()),
-        |(package_name, task_name)| (Some(package_name), task_name),
-    );
+    let task_ref = TaskReference::parse(package_task.value.as_ref());
 
     let range = byte_range_to_lsp_range(text, collapse_string_range(package_task.range));
 
-    match (workspace.task_packages.get(task), package) {
+    match (workspace.task_packages.get(task_ref.task), task_ref.package) {
         (_, Some(package_name)) if !workspace.package_names.contains(package_name) => {
             diagnostics.push(Diagnostic {
                 message: format!("The package `{package_name}` does not exist in this workspace."),
@@ -766,7 +853,10 @@ fn report_invalid_packages_and_tasks(
             if !packages.iter().any(|name| name == package_name) =>
         {
             diagnostics.push(Diagnostic {
-                message: format!("The task `{task}` does not exist in package `{package_name}`."),
+                message: format!(
+                    "The task `{}` does not exist in package `{package_name}`.",
+                    task_ref.task
+                ),
                 range,
                 severity: Some(DiagnosticSeverity::ERROR),
                 code: Some(NumberOrString::String(
@@ -777,7 +867,10 @@ fn report_invalid_packages_and_tasks(
         }
         (None, _) => {
             diagnostics.push(Diagnostic {
-                message: format!("The task `{task}` does not exist in this workspace."),
+                message: format!(
+                    "The task `{}` does not exist in this workspace.",
+                    task_ref.task
+                ),
                 range,
                 severity: Some(DiagnosticSeverity::ERROR),
                 code: Some(NumberOrString::String("turbo:no-such-task".to_string())),
@@ -847,6 +940,7 @@ async fn build_hover_markdown(repo_root: Option<&Path>, target: &HoverTarget) ->
 #[derive(Debug, Clone)]
 struct HoverContext {
     packages: Vec<Package>,
+    root_path: PathBuf,
 }
 
 async fn load_hover_context(repo_root: Option<&Path>) -> Option<HoverContext> {
@@ -860,7 +954,10 @@ async fn load_hover_context(repo_root: Option<&Path>) -> Option<HoverContext> {
     {
         packages.push(root_package);
     }
-    Some(HoverContext { packages })
+    Some(HoverContext {
+        packages,
+        root_path: root.to_path_buf(),
+    })
 }
 
 fn top_level_hover(name: &str) -> String {
@@ -952,8 +1049,11 @@ fn task_field_hover(task_name: &str, field_name: &str, context: Option<&HoverCon
 fn depends_on_hover(task_name: &str, entry: &str, context: Option<&HoverContext>) -> String {
     let meaning = entry.strip_prefix('^').map_or_else(
         || {
-            if let Some((package, task)) = entry.split_once('#') {
-                format!("Targets task `{task}` in package `{package}`.")
+            let task_ref = TaskReference::parse(entry);
+            if task_ref.package == Some(ROOT_PACKAGE_NAME) {
+                format!("Targets root task `{}` in the workspace root.", task_ref.task)
+            } else if let Some(package) = task_ref.package {
+                format!("Targets task `{}` in package `{package}`.", task_ref.task)
             } else {
                 format!("Targets task `{entry}` in the same package or root workspace.")
             }
@@ -987,18 +1087,15 @@ fn depends_on_hover(task_name: &str, entry: &str, context: Option<&HoverContext>
 }
 
 fn packages_for_task<'a>(context: &'a HoverContext, task_name: &str) -> Vec<&'a str> {
-    let bare_task = task_name
-        .trim_start_matches('^')
-        .rsplit_once('#')
-        .map_or_else(|| task_name.trim_start_matches('^'), |(_, task)| task);
+    let bare_task = TaskReference::parse(task_name.trim_start_matches('^')).task;
 
     context
         .packages
         .iter()
         .filter_map(|package| {
             if package.scripts.contains_key(bare_task) {
-                if package.path == context.packages.first()?.path.parent()?.to_path_buf() {
-                    Some("//")
+                if package.path == context.root_path {
+                    Some(ROOT_PACKAGE_NAME)
                 } else {
                     Some(package.name.as_str())
                 }
@@ -1042,6 +1139,14 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn task_reference_parses_root_tasks() {
+        let task_ref = TaskReference::parse("//#install:lsp");
+
+        assert_eq!(task_ref.package, Some(ROOT_PACKAGE_NAME));
+        assert_eq!(task_ref.task, "install:lsp");
+    }
 
     #[test]
     fn utf16_position_handles_multibyte_chars() {

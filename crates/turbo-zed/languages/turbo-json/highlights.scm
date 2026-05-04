@@ -57,6 +57,14 @@
     "description"
     "allowAllOutputLogsOnSuccess"))
 
+; Task definition keys under tasks/pipeline
+(pair
+  key: (string (string_content) @_task_group_key)
+  (#any-of? @_task_group_key "tasks" "pipeline")
+  value: (object
+    (pair
+      key: (string (string_content) @function))))
+
 ; Remote cache configuration keys
 (pair
   key: (string (string_content) @type)
@@ -113,7 +121,7 @@
 ; Package#task syntax
 (string
   (string_content) @function
-  (#match? @function "^[a-zA-Z0-9@/_-]+#[a-zA-Z0-9_-]+$"))
+  (#match? @function "^[a-zA-Z0-9@/_-]+#[a-zA-Z0-9:_-]+$"))
 
 ; Punctuation
 "{" @punctuation.bracket
