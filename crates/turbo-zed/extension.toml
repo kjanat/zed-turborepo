@@ -14,7 +14,7 @@ rev        = "ee35a6ebefcef0c5c416c0d1ccec7370cfca5a24"         # v0.24.8 (suppo
 
 [language_servers.turbo-lsp]
 languages         = ["TurboJSON"]
-code_action_kinds = []
+code_action_kinds = ["quickfix"]
 
 [language_servers.turbo-lsp.language_ids]
 "TurboJSON" = "json"
