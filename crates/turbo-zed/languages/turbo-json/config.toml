@@ -1,8 +1,8 @@
 #:schema /home/kjanat/projects/zed-editor/crates/extension_api/schemas/language-config.schema.json
 
-name                          = "JSON"
+name                          = "TurboJSON"
 grammar                       = "jsonc"
-path_suffixes                 = ["turbo.json", "turbo.jsonc", "package.json"]
+path_suffixes                 = ["turbo.json", "turbo.jsonc"]
 # line_comments                 = ["// "]
 tab_size                      = 2
 scope_opt_in_language_servers = ["json-language-server", "package-version-server"]

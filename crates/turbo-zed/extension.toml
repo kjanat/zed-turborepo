@@ -13,12 +13,11 @@ repository = "https://github.com/tree-sitter/tree-sitter-json"
 rev        = "ee35a6ebefcef0c5c416c0d1ccec7370cfca5a24"         # v0.24.8 (supports comments)
 
 [language_servers.turbo-lsp]
-languages         = ["JSON", "JSONC"]
+languages         = ["TurboJSON"]
 code_action_kinds = []
 
 [language_servers.turbo-lsp.language_ids]
-"JSON"  = "json"
-"JSONC" = "json"
+"TurboJSON" = "json"
 
 [[capabilities]]
 kind    = "process:exec"
