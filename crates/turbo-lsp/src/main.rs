@@ -21,7 +21,7 @@ use tower_lsp::{
         CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams,
         CodeActionProviderCapability, CodeActionResponse, CodeLens, CodeLensOptions,
         CodeLensParams, Command, CompletionItem, CompletionItemKind, CompletionOptions,
-        CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity,
+        CompletionParams, CompletionResponse, Diagnostic, DiagnosticSeverity, DiagnosticTag,
         DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
         DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
         DidSaveTextDocumentParams, ExecuteCommandOptions, ExecuteCommandParams,
@@ -248,6 +248,7 @@ impl TurboBackend {
                                 ),
                                 range: byte_range_to_lsp_range(rope, collapse_string_range(string.range)),
                                 severity: Some(DiagnosticSeverity::HINT),
+                                tags: Some(vec![DiagnosticTag::UNNECESSARY]),
                                 ..Diagnostic::default()
                             });
                             stripped
