@@ -6,15 +6,12 @@
       "name": "zed-turborepo",
       "devDependencies": {
         "@types/bun": "^1.3.8",
+        "@types/deno": "latest",
         "turbo": "^2.8.1",
       },
     },
     "crates/turbo-core": {
       "name": "@turbo/core",
-      "version": "2.8.0",
-    },
-    "crates/turbo-lsp": {
-      "name": "@turbo/lsp",
       "version": "2.8.0",
     },
     "crates/turbo-mcp": {
@@ -32,13 +29,13 @@
   "packages": {
     "@turbo/core": ["@turbo/core@workspace:crates/turbo-core"],
 
-    "@turbo/lsp": ["@turbo/lsp@workspace:crates/turbo-lsp"],
-
     "@turbo/mcp": ["@turbo/mcp@workspace:crates/turbo-mcp"],
 
     "@turbo/zed": ["@turbo/zed@workspace:crates/turbo-zed"],
 
     "@types/bun": ["@types/bun@1.3.8", "", { "dependencies": { "bun-types": "1.3.8" } }, "sha512-3LvWJ2q5GerAXYxO2mffLTqOzEu5qnhEAlh48Vnu8WQfnmSwbgagjGZV6BoHKJztENYEDn6QmVd949W4uESRJA=="],
+
+    "@types/deno": ["@types/deno@2.5.0", "", {}, "sha512-g8JS38vmc0S87jKsFzre+0ZyMOUDHPVokEJymSCRlL57h6f/FdKPWBXgdFh3Z8Ees9sz11qt9VWELU9Y9ZkiVw=="],
 
     "@types/node": ["@types/node@25.1.0", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-t7frlewr6+cbx+9Ohpl0NOTKXZNV9xHRmNOvql47BFJKcEG1CxtxlPEEe+gR9uhVWM4DwhnvTF110mIL4yP9RA=="],
 

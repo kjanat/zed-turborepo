@@ -1,4 +1,4 @@
-#:schema /home/kjanat/projects/zed-editor/crates/extension_api/schemas/extension.schema.json
+#:schema https://raw.githubusercontent.com/kjanat/zed-editor/refs/heads/feature/extension-toml-schema/crates/extension_api/schemas/extension.schema.json
 
 id             = "turbo-zed"
 name           = "Turborepo"

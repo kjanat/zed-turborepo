@@ -1,13 +1,13 @@
-#:schema /home/kjanat/projects/zed-editor/crates/extension_api/schemas/language-config.schema.json
+#:schema https://raw.githubusercontent.com/kjanat/zed-editor/refs/heads/feature/extension-toml-schema/crates/extension_api/schemas/language-config.schema.json
 
 name                          = "TurboJSON"
 grammar                       = "jsonc"
 path_suffixes                 = ["turbo.json", "turbo.jsonc"]
-# line_comments                 = ["// "]
 tab_size                      = 2
 scope_opt_in_language_servers = ["json-language-server", "package-version-server"]
 prettier_parser_name          = "jsonc"
 code_fence_block_name         = "jsonc"
+# line_comments                 = ["// "]
 # brackets                      = [
 #   { start = "{", end = "}", close = true, surround = true, newline = true, not_in = ["string", "comment"] },
 #   { start = "[", end = "]", close = true, surround = true, newline = true, not_in = ["string", "comment"] }

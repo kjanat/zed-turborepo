@@ -1,34 +1,22 @@
 {
-  "formatter": [
-    {
-      "external": {
-        "command": "dprint",
-        "arguments": ["fmt", "--stdin", "{buffer_path}"]
-      }
-    }
-  ],
+  "formatter": [{ "external": { "command": "dprint", "arguments": ["fmt", "--stdin", "{buffer_path}"] } }],
   "prettier": { "allowed": false },
-  // "file_types": {
-  //   "JSONC": ["turbo.json", "turbo.jsonc"]
-  // },
-  "languages": {
-    "TOML": { "wrap_guides": [120], "language_servers": ["tombi", "..."] }
-  },
+  "languages": { "TOML": { "wrap_guides": [120], "language_servers": ["tombi", "..."] } },
   "lsp": {
-    // "rust-analyzer": {
-    //   "initialization_options": {
-    //     "cargo": { "allFeatures": true, "allTargets": true }
-    //   }
-    // },
-    // "turbo-lsp": {
-    //   "binary": { "path": "/home/kjanat/projects/zed-turborepo/scripts/turbo-lsp-wrapper.sh" },
-    //   "enable_lsp_tasks": true
-    // }
+    "rust-analyzer": {
+      "initialization_options": {
+        "cargo": { "allFeatures": true, "allTargets": true }
+      }
+    },
+    "turbo-lsp": {
+      "binary": { "path": "cargo", "arguments": ["run", "--bin", "turbo-lsp", "--path", "crates/turbo-lsp"] },
+      "enable_lsp_tasks": true
+    }
   },
   "context_servers": {
     "turbo-mcp": {
       "command": "cargo",
-      "args": ["run", "--bin", "turbo-mcp"],
+      "args": ["run", "--bin", "turbo-mcp", "--path", "crates/turbo-mcp"],
       "enabled": true,
       "env": {}
     }

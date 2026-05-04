@@ -20,8 +20,8 @@ use rmcp::{
     ErrorData as McpError, ServiceExt,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
     model::{
-        Annotated, CallToolResult, Content, Icon, Implementation, ListResourcesResult,
-        PaginatedRequestParams, ProtocolVersion, RawResource, ReadResourceRequestParams,
+        Annotated, CallToolResult, Content, Icon, Implementation, InitializeResult,
+        ListResourcesResult, PaginatedRequestParams, RawResource, ReadResourceRequestParams,
         ReadResourceResult, ResourceContents, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
@@ -462,28 +462,26 @@ impl TurboServer {
     }
 }
 
-#[tool_handler]
+#[tool_handler(router = self.tool_router)]
 impl rmcp::ServerHandler for TurboServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: ProtocolVersion::LATEST,
-            capabilities: ServerCapabilities::builder()
-                .enable_tools()
-                .enable_resources()
-                .build(),
-            server_info: Implementation {
-                name: env!("CARGO_PKG_NAME").into(),
-                version: env!("CARGO_PKG_VERSION").into(),
-                title: Some(env!("CARGO_PKG_DESCRIPTION").into()),
-                icons: Some(vec![Icon {
-                    src: format!("data:image/svg+xml;base64,{}", BASE64.encode(ICON_SVG)),
-                    mime_type: Some("image/svg+xml".into()),
-                    sizes: Some(vec!["any".into()]),
-                }]),
-                website_url: Some(env!("CARGO_PKG_REPOSITORY").into()),
-            },
-            instructions: Some(self.instructions.clone()),
-        }
+        let capabilities = ServerCapabilities::builder()
+            .enable_tools()
+            .enable_resources()
+            .build();
+        let icon = Icon::new(format!(
+            "data:image/svg+xml;base64,{}",
+            BASE64.encode(ICON_SVG)
+        ))
+        .with_mime_type("image/svg+xml")
+        .with_sizes(vec!["any".into()]);
+        let server_info = Implementation::new(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+            .with_title(env!("CARGO_PKG_DESCRIPTION"))
+            .with_icons(vec![icon])
+            .with_website_url(env!("CARGO_PKG_REPOSITORY"));
+        InitializeResult::new(capabilities)
+            .with_server_info(server_info)
+            .with_instructions(self.instructions.clone())
     }
 
     async fn list_resources(
@@ -525,23 +523,19 @@ impl rmcp::ServerHandler for TurboServer {
         match request.uri.as_str() {
             "turbo://config" => {
                 let config = self.load_config().await?;
-                Ok(ReadResourceResult {
-                    contents: vec![ResourceContents::text(
-                        serde_json::to_string_pretty(&config).unwrap(),
-                        request.uri,
-                    )],
-                })
+                Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                    serde_json::to_string_pretty(&config).unwrap(),
+                    request.uri,
+                )]))
             }
             "turbo://tasks" => {
                 let config = self.load_config().await?;
                 let tasks = config.task_names();
 
-                Ok(ReadResourceResult {
-                    contents: vec![ResourceContents::text(
-                        serde_json::to_string_pretty(&tasks).unwrap(),
-                        request.uri,
-                    )],
-                })
+                Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                    serde_json::to_string_pretty(&tasks).unwrap(),
+                    request.uri,
+                )]))
             }
             "turbo://packages" => {
                 let discovery = self.discovery().await;
@@ -550,12 +544,10 @@ impl rmcp::ServerHandler for TurboServer {
                     .await
                     .map_err(|e| McpError::internal_error(e.to_string(), None))?;
 
-                Ok(ReadResourceResult {
-                    contents: vec![ResourceContents::text(
-                        serde_json::to_string_pretty(&packages).unwrap(),
-                        request.uri,
-                    )],
-                })
+                Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                    serde_json::to_string_pretty(&packages).unwrap(),
+                    request.uri,
+                )]))
             }
             "turbo://cache" => {
                 let config = self.load_config().await.ok();
@@ -581,12 +573,10 @@ impl rmcp::ServerHandler for TurboServer {
                     "daemonStatus": daemon_status
                 });
 
-                Ok(ReadResourceResult {
-                    contents: vec![ResourceContents::text(
-                        serde_json::to_string_pretty(&response).unwrap(),
-                        request.uri,
-                    )],
-                })
+                Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                    serde_json::to_string_pretty(&response).unwrap(),
+                    request.uri,
+                )]))
             }
             _ => Err(McpError::resource_not_found(
                 format!("Unknown: {}", request.uri),
